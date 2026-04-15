@@ -1,0 +1,41 @@
+project: rx-install
+id: rx-inst
+updated: 2026-04-15
+
+items:
+  - id: rx-inst-1
+    name: add-rx-list-for-installed-scripts
+    priority: P1
+    status: open
+    title: Add `rx list` for installed scripts
+    description: Enumerate rx-managed installed binaries with one-line output that includes name, description, binary path, and source.
+    files: [src/lib.rs, src/main.rs]
+  - id: rx-inst-2
+    name: add-rx-run-command
+    priority: P1
+    status: open
+    title: Add `rx run` command for installed compatible scripts
+    description: Resolve an installed script by name and execute it, starting with the current rust-script-compatible install model.
+    files: [src/lib.rs, src/main.rs]
+  - id: rx-inst-3
+    name: design-and-add-rxx
+    priority: P1
+    status: open
+    title: Design and add `rxx` for executing compatible scripts directly
+    description: Add a companion entrypoint for direct compatible-script execution with shared runtime selection and adapter boundaries.
+    files: [src/lib.rs, src/main.rs]
+  - id: rx-inst-4
+    name: add-runtime-adapters-for-rxx
+    priority: P2
+    status: open
+    title: Add runtime adapters for Python, JS/TS, and shell scripts in `rxx`
+    description: Extend compatible-script execution to Python via uv, JavaScript and TypeScript via bun, and shell scripts via bash, fish, zsh, and nushell.
+    files: [src/lib.rs, src/main.rs]
+
+log:
+  - date: 2026-04-15
+    summary: Restored crate metadata URLs, created and pushed the GitHub repository, and opened the initial feature issue set.
+    commits: [22a2870]
+  - date: 2026-04-15
+    summary: Built and published the initial `rx-install` crate while keeping the installed binary name `rx`.
+    commits: [bfa1324]

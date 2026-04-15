@@ -1,1 +1,8 @@
 /target
+
+# handoff-begin
+.ctx/*
+!.ctx/HANDOFF.*.*.yaml
+.ctx/HANDOFF.rx-install.rx.state.yaml
+.ctx/.initialized
+# handoff-end
