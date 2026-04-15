@@ -1,0 +1,26 @@
+[package]
+name = "rx-install"
+version = "0.1.0"
+edition = "2024"
+description = "Install rust-script scripts from local directories, files, and URLs"
+readme = "README.md"
+license = "MIT"
+keywords = ["rust-script", "installer", "scripts", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+anyhow = "1.0.100"
+clap = { version = "4.5.39", features = ["derive"] }
+reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "rustls-tls"] }
+walkdir = "2.5.0"
+
+[dev-dependencies]
+tempfile = "3.23.0"
+
+[lib]
+name = "rx"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rx"
+path = "src/main.rs"
