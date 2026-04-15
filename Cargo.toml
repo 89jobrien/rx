@@ -2,7 +2,10 @@
 name = "rx-install"
 version = "0.1.0"
 edition = "2024"
-description = "Install rust-script scripts from local directories, files, and URLs"
+description = "Install rust-scripts from local directories, files, and URLs"
+documentation = "https://docs.rs/rx-install"
+homepage = "https://github.com/89jobrien/rx"
+repository = "https://github.com/89jobrien/rx"
 readme = "README.md"
 license = "MIT"
 keywords = ["rust-script", "installer", "scripts", "cli"]
