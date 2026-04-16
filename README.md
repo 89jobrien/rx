@@ -66,6 +66,23 @@ rx run preflight -- --check
 rxx ./scripts/preflight.rs -- --check
 ```
 
+For a full local walkthrough that leaves your real config untouched:
+
+```bash
+./examples/demo.sh
+```
+
+For a terse end-to-end verification script:
+
+```bash
+./examples/smoke.sh
+```
+
+The demo is a guided walkthrough. The smoke script is the same core flow with minimal narration.
+Both install `examples/hello.rs` into a temporary XDG config root, show the generated registry
+entry, run the installed command through `rx run`, and then run the same script directly through
+`rxx`.
+
 `rx list` prints one tab-delimited row per installed command:
 
 ```text
