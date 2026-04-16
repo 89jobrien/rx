@@ -13,6 +13,9 @@ items:
 
 log:
   - date: 2026-04-16
+    summary: Audited the backlog, captured four new `rx` follow-up issues in doob, and pruned the resolved `rx-install` handoff item.
+    commits: []
+  - date: 2026-04-16
     summary: Added a shell preflight example, kept the Rust preflight for direct comparison, and updated README/demo/smoke to explain the shared command-name collision.
     commits: [1718d5b]
   - date: 2026-04-16

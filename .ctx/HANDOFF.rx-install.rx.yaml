@@ -3,22 +3,10 @@ project: rx-install
 id: rx-inst
 updated: 2026-04-16
 
-items:
-  - id: rx-inst-4
-    name: add-runtime-adapters-for-rxx
-    priority: P2
-    status: open
-    title: Add runtime adapters for Python, JS/TS, and shell scripts in `rxx`
-    description: Extend compatible-script execution to Python via uv, JavaScript and TypeScript via bun, and shell scripts via bash, fish, zsh, and nushell.
-    files: [src/lib.rs, src/main.rs, src/bin/rxx.rs]
-    extra:
-      - date: 2026-04-16
-        type: escalation
-        note: >
-          Surfaced as highest urgency in cross-project handup survey (2026-04-16).
-          This is the only remaining open HANDOFF item after `rx list`, `rx run`, and `rxx` landed.
-
 log:
+  - date: 2026-04-16
+    summary: Pruned resolved handoff item `rx-inst-4` after backlog audit; `rx-install` has no remaining open HANDOFF items.
+    commits: []
   - date: 2026-04-16
     summary: Added `examples/demo.sh`, `examples/smoke.sh`, and a runnable `hello.rs` walkthrough to exercise install/list/run flow locally.
     commits: []
