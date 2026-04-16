@@ -19,6 +19,9 @@ items:
 
 log:
   - date: 2026-04-16
+    summary: Added `examples/demo.sh`, `examples/smoke.sh`, and a runnable `hello.rs` walkthrough to exercise install/list/run flow locally.
+    commits: []
+  - date: 2026-04-16
     summary: >
       handdown analysis pass — 1 item annotated.
       `rx-inst-4` is now the recommended next focus after the runtime execution work shipped.
