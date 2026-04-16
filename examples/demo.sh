@@ -12,6 +12,8 @@ export RUSTC_WRAPPER=""
 RX_BIN=(cargo run --quiet -p rx-install --bin rx --)
 RXX_BIN=(cargo run --quiet -p rxx --bin rxx --)
 EXAMPLE_DIR="$ROOT/examples/scripts"
+PREFLIGHT_SHELL="$ROOT/scripts/preflight.sh"
+PREFLIGHT_RUST="$ROOT/scripts/preflight.rs"
 REGISTRY_PATH="$XDG_CONFIG_HOME/rx/registry.json"
 
 require_tool() {
@@ -39,25 +41,33 @@ rx demo
 repo root: $ROOT
 temporary XDG_CONFIG_HOME: $XDG_CONFIG_HOME
 
-This walkthrough installs a directory of example scripts, shows the generated
-registry, runs installed commands through rx, and then exercises each runtime
-directly through rxx.
+This walkthrough installs the shell preflight as the fast default command,
+keeps the richer Rust preflight alongside it for direct execution, shows the
+generated registry, and then exercises each runtime through rxx.
 EOF
 
-section "1. Install the example script directory"
+section "1. Install the shell preflight script"
+run "${RX_BIN[@]}" install "$PREFLIGHT_SHELL"
+
+section "2. Install the example script directory"
 run "${RX_BIN[@]}" install "$EXAMPLE_DIR"
 
-section "2. Discover what rx installed"
+section "3. Discover what rx installed"
 run "${RX_BIN[@]}" list
 
-section "3. Inspect the registry entry"
+section "4. Inspect the registry entry"
 run cat "$REGISTRY_PATH"
 
-section "4. Execute installed commands with rx run"
+section "5. Execute installed commands with rx run"
+run "${RX_BIN[@]}" run preflight
 run "${RX_BIN[@]}" run hello-rust -- --name rx
 run "${RX_BIN[@]}" run hello-python -- --name rx
 
-section "5. Execute source files directly with rxx"
+section "6. Compare direct preflight scripts with rxx"
+run "${RXX_BIN[@]}" "$PREFLIGHT_SHELL"
+run "${RXX_BIN[@]}" "$PREFLIGHT_RUST"
+
+section "7. Execute source files directly with rxx"
 run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-javascript.js" -- --name direct
 run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-typescript.ts" -- --name direct
 run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-bash.sh" -- --name direct

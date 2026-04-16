@@ -1,6 +1,6 @@
 # rx
 
-`rx` installs `rust-script` programs from local paths or remote URLs into a local command
+`rx` installs compatible scripts from local paths or remote URLs into a local command
 directory and records what it installed in a JSON registry.
 
 ## What It Does
@@ -59,21 +59,24 @@ For local development from the workspace root:
 
 ```bash
 cargo run --quiet -p rx-install --bin rx -- list
-cargo run --quiet -p rx-install --bin rx -- run preflight -- --check
-cargo run --quiet -p rxx --bin rxx -- ./scripts/preflight.rs -- --check
+cargo run --quiet -p rx-install --bin rx -- run preflight
+cargo run --quiet -p rxx --bin rxx -- ./scripts/preflight.sh
+cargo run --quiet -p rxx --bin rxx -- ./scripts/preflight.rs
 ```
 
 Examples:
 
 ```bash
 rx install scripts
+rx install ./scripts/preflight.sh
 rx install ./scripts/preflight.rs
 rx install https://raw.githubusercontent.com/example/repo/main/script.rs
 rx install <github-blob-url>
 rx install ./scripts --install-dir ~/.local/bin
 rx list
-rx run preflight -- --check
-rxx ./scripts/preflight.rs -- --check
+rx run preflight
+rxx ./scripts/preflight.sh
+rxx ./scripts/preflight.rs
 ```
 
 For a full local walkthrough that leaves your real config untouched:
@@ -89,9 +92,9 @@ For a terse end-to-end verification script:
 ```
 
 The demo is a guided walkthrough. The smoke script is the same core flow with minimal narration.
-Both install `examples/scripts/` into a temporary XDG config root, show the generated registry
-entries, run installed Rust and Python commands through `rx run`, and then execute JavaScript,
-TypeScript, Bash, Zsh, Fish, and Nushell examples directly through `rxx`.
+They install [preflight.sh](/Users/joe/dev/rx/scripts/preflight.sh) as the default fast-path
+command, keep [preflight.rs](/Users/joe/dev/rx/scripts/preflight.rs) as a richer direct-run
+comparison script, and then exercise `examples/scripts/` through the same temporary XDG config root.
 
 `rx list` prints one tab-delimited row per installed command:
 
@@ -121,7 +124,7 @@ runtime selection layer.
 
 Behavior by source type:
 
-- local file: fails if the file is not a valid `rust-script`
+- local file: fails if the file is not a supported script
 - local directory: installs matching files, skips non-matching files, and fails if nothing matched
 - remote URL: downloads one file, validates it, and installs it
 
@@ -149,9 +152,9 @@ Example:
   "commands": [
     {
       "name": "preflight",
-      "source": "./scripts/preflight.rs",
+      "source": "./scripts/preflight.sh",
       "install_path": "/Users/alice/.config/rx/bin/preflight",
-      "runtime": "rs",
+      "runtime": "sh",
       "description": null
     }
   ]
@@ -163,8 +166,13 @@ Example:
 The installed command name is derived from the script filename stem:
 
 - `hello-rust.rs` becomes `hello-rust`
-- `scripts/tools/preflight.rs` becomes `preflight`
+- `scripts/tools/preflight.sh` becomes `preflight`
+- `scripts/tools/preflight.rs` also becomes `preflight`
 - a remote URL ending in `script.rs` becomes `script`
+
+Because command names come from the filename stem, `preflight.sh` and `preflight.rs` collide if you
+install both into the same registry. The examples treat `preflight.sh` as the installed default and
+run `preflight.rs` directly through `rxx`.
 
 ## Current Scope
 

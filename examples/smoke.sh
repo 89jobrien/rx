@@ -12,6 +12,8 @@ export RUSTC_WRAPPER=""
 RX_BIN=(cargo run --quiet -p rx-install --bin rx --)
 RXX_BIN=(cargo run --quiet -p rxx --bin rxx --)
 EXAMPLE_DIR="$ROOT/examples/scripts"
+PREFLIGHT_SHELL="$ROOT/scripts/preflight.sh"
+PREFLIGHT_RUST="$ROOT/scripts/preflight.rs"
 REGISTRY_PATH="$XDG_CONFIG_HOME/rx/registry.json"
 
 run() {
@@ -29,9 +31,12 @@ done
 echo "rx smoke root: $ROOT"
 echo "temporary XDG_CONFIG_HOME: $XDG_CONFIG_HOME"
 
+run "${RX_BIN[@]}" install "$PREFLIGHT_SHELL"
 run "${RX_BIN[@]}" install "$EXAMPLE_DIR"
 run "${RX_BIN[@]}" list
 run cat "$REGISTRY_PATH"
+run "${RX_BIN[@]}" run preflight
+run "${RXX_BIN[@]}" "$PREFLIGHT_RUST"
 run "${RX_BIN[@]}" run hello-rust -- --name rx
 run "${RX_BIN[@]}" run hello-python -- --name rx
 run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-javascript.js" -- --name direct
