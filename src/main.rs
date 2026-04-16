@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use rx::{InstallRequest, install};
-use std::{env, path::PathBuf};
+use rx::{InstallRequest, default_paths, install};
+use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -30,14 +30,17 @@ fn main() -> Result<()> {
             source,
             install_dir,
         } => {
+            let paths = default_paths()?;
             let report = install(&InstallRequest {
                 source,
                 install_dir,
+                registry_path: paths.registry_path,
             })?;
 
             for script in &report.installed {
                 println!(
-                    "installed {} -> {}",
+                    "installed {} ({}) -> {}",
+                    script.name,
                     script.source,
                     script.destination.display()
                 );
@@ -56,8 +59,7 @@ fn main() -> Result<()> {
 }
 
 fn default_install_dir() -> PathBuf {
-    env::var_os("HOME")
-        .map(PathBuf::from)
-        .map(|home| home.join(".local/bin"))
-        .unwrap_or_else(|| PathBuf::from("."))
+    default_paths()
+        .map(|paths| paths.bin_dir)
+        .unwrap_or_else(|_| PathBuf::from("."))
 }
