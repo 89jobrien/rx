@@ -1,7 +1,13 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use rx::{InstallRequest, default_paths, install};
-use std::path::PathBuf;
+use rx::{
+    InstallRequest, RunRequest, default_paths, format_registry_entry, install, list_installed,
+    run_installed,
+};
+use std::{
+    path::PathBuf,
+    process::{ExitStatus, exit},
+};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -19,6 +25,18 @@ enum Command {
         source: String,
         #[arg(long, value_name = "DIR", default_value_os_t = default_install_dir())]
         install_dir: PathBuf,
+    },
+    List {
+        #[arg(long, value_name = "FILE", default_value_os_t = default_registry_path())]
+        registry_path: PathBuf,
+    },
+    #[command(trailing_var_arg = true)]
+    Run {
+        name: String,
+        #[arg(long, value_name = "FILE", default_value_os_t = default_registry_path())]
+        registry_path: PathBuf,
+        #[arg(allow_hyphen_values = true)]
+        args: Vec<String>,
     },
 }
 
@@ -53,6 +71,23 @@ fn main() -> Result<()> {
                 }
             }
         }
+        Command::List { registry_path } => {
+            for entry in list_installed(&registry_path)? {
+                println!("{}", format_registry_entry(&entry));
+            }
+        }
+        Command::Run {
+            name,
+            registry_path,
+            args,
+        } => {
+            let status = run_installed(&RunRequest {
+                name,
+                registry_path,
+                args,
+            })?;
+            exit_with_status(status);
+        }
     }
 
     Ok(())
@@ -62,4 +97,14 @@ fn default_install_dir() -> PathBuf {
     default_paths()
         .map(|paths| paths.bin_dir)
         .unwrap_or_else(|_| PathBuf::from("."))
+}
+
+fn default_registry_path() -> PathBuf {
+    default_paths()
+        .map(|paths| paths.registry_path)
+        .unwrap_or_else(|_| PathBuf::from("registry.json"))
+}
+
+fn exit_with_status(status: ExitStatus) -> ! {
+    exit(status.code().unwrap_or(1));
 }

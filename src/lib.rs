@@ -4,6 +4,7 @@ use std::{
     ffi::OsStr,
     fs,
     path::{Path, PathBuf},
+    process::{Command, ExitStatus, Stdio},
 };
 use walkdir::WalkDir;
 
@@ -14,6 +15,19 @@ pub struct InstallRequest {
     pub source: String,
     pub install_dir: PathBuf,
     pub registry_path: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunRequest {
+    pub name: String,
+    pub registry_path: PathBuf,
+    pub args: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectRunRequest {
+    pub script_path: PathBuf,
+    pub args: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,6 +63,12 @@ pub struct RegistryEntry {
 struct RegistryFile {
     version: u32,
     commands: Vec<RegistryEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutionPlan {
+    pub program: String,
+    pub args: Vec<String>,
 }
 
 pub fn install(request: &InstallRequest) -> Result<InstallReport> {
@@ -217,13 +237,18 @@ fn read_and_validate_script(path: &Path) -> Result<String> {
 }
 
 fn validate_script_contents(contents: &str, label: &str) -> Result<()> {
+    let _ = detect_runtime(contents, label)?;
+    Ok(())
+}
+
+fn detect_runtime(contents: &str, label: &str) -> Result<Runtime> {
     let first_line = contents
         .lines()
         .next()
         .ok_or_else(|| anyhow!("script is empty: {label}"))?;
 
     if RUST_SCRIPT_SHEBANGS.contains(&first_line) {
-        return Ok(());
+        return Ok(Runtime::RustScript);
     }
 
     bail!("unsupported script type for {label}: expected rust-script shebang");
@@ -290,6 +315,30 @@ pub struct RxPaths {
 
 pub fn list_installed(registry_path: &Path) -> Result<Vec<RegistryEntry>> {
     Ok(load_registry(registry_path)?.commands)
+}
+
+pub fn format_registry_entry(entry: &RegistryEntry) -> String {
+    format!(
+        "{}\t{}\t{}\t{}",
+        entry.name,
+        entry.description.as_deref().unwrap_or("-"),
+        entry.install_path.display(),
+        entry.source
+    )
+}
+
+pub fn run_installed(request: &RunRequest) -> Result<ExitStatus> {
+    let entry = list_installed(&request.registry_path)?
+        .into_iter()
+        .find(|entry| entry.name == request.name)
+        .ok_or_else(|| anyhow!("command not found in registry: {}", request.name))?;
+    let plan = build_execution_plan(&entry.install_path, &entry.runtime, &request.args);
+    execute_plan(&plan)
+}
+
+pub fn run_direct(request: &DirectRunRequest) -> Result<ExitStatus> {
+    let plan = plan_direct_execution(&request.script_path, &request.args)?;
+    execute_plan(&plan)
 }
 
 fn rx_home_dir() -> Result<PathBuf> {
@@ -367,6 +416,37 @@ fn save_registry(registry_path: &Path, registry: &RegistryFile) -> Result<()> {
     fs::write(registry_path, contents)
         .with_context(|| format!("writing registry {}", registry_path.display()))?;
     Ok(())
+}
+
+fn plan_direct_execution(script_path: &Path, args: &[String]) -> Result<ExecutionPlan> {
+    let contents = fs::read_to_string(script_path)
+        .with_context(|| format!("reading script {}", script_path.display()))?;
+    let runtime = detect_runtime(&contents, &script_path.display().to_string())?;
+    Ok(build_execution_plan(script_path, &runtime, args))
+}
+
+fn build_execution_plan(script_path: &Path, runtime: &Runtime, args: &[String]) -> ExecutionPlan {
+    match runtime {
+        Runtime::RustScript => {
+            let mut invocation_args = Vec::with_capacity(args.len() + 1);
+            invocation_args.push(script_path.display().to_string());
+            invocation_args.extend(args.iter().cloned());
+            ExecutionPlan {
+                program: "rust-script".to_string(),
+                args: invocation_args,
+            }
+        }
+    }
+}
+
+pub fn execute_plan(plan: &ExecutionPlan) -> Result<ExitStatus> {
+    Command::new(&plan.program)
+        .args(&plan.args)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .with_context(|| format!("running {}", plan.program))
 }
 
 #[cfg(unix)]
@@ -534,6 +614,75 @@ mod tests {
         let registry_dir = tempdir()?;
         let commands = list_installed(&registry_dir.path().join("registry.json"))?;
         assert!(commands.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn format_registry_entry_includes_all_expected_columns() {
+        let entry = RegistryEntry {
+            name: "hello".to_string(),
+            source: "https://example.com/hello.rs".to_string(),
+            install_path: PathBuf::from("/tmp/rx/bin/hello"),
+            runtime: Runtime::RustScript,
+            description: None,
+        };
+
+        assert_eq!(
+            format_registry_entry(&entry),
+            "hello\t-\t/tmp/rx/bin/hello\thttps://example.com/hello.rs"
+        );
+    }
+
+    #[test]
+    fn build_execution_plan_uses_registry_install_path_for_rust_script() -> Result<()> {
+        let source_dir = tempdir()?;
+        let install_dir = tempdir()?;
+        let registry_dir = tempdir()?;
+        let registry_path = registry_dir.path().join("registry.json");
+        let script_path = source_dir.path().join("hello.rs");
+        fs::write(&script_path, "#!/usr/bin/env rust-script\nfn main() {}\n")?;
+
+        install(&InstallRequest {
+            source: script_path.display().to_string(),
+            install_dir: install_dir.path().to_path_buf(),
+            registry_path: registry_path.clone(),
+        })?;
+
+        let entry = list_installed(&registry_path)?
+            .into_iter()
+            .find(|entry| entry.name == "hello")
+            .expect("installed command exists");
+        let plan = build_execution_plan(
+            &entry.install_path,
+            &entry.runtime,
+            &["--flag".to_string(), "value".to_string()],
+        );
+
+        assert_eq!(plan.program, "rust-script");
+        assert_eq!(
+            plan.args,
+            vec![
+                install_dir.path().join("hello").display().to_string(),
+                "--flag".to_string(),
+                "value".to_string(),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn plan_direct_execution_uses_rust_script_runtime() -> Result<()> {
+        let source_dir = tempdir()?;
+        let script_path = source_dir.path().join("hello.rs");
+        fs::write(&script_path, "#!/usr/bin/env rust-script\nfn main() {}\n")?;
+
+        let plan = plan_direct_execution(&script_path, &["--demo".to_string()])?;
+
+        assert_eq!(plan.program, "rust-script");
+        assert_eq!(
+            plan.args,
+            vec![script_path.display().to_string(), "--demo".to_string()]
+        );
         Ok(())
     }
 }

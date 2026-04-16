@@ -48,6 +48,9 @@ mise install
 ```bash
 rx install <source>
 rx install <source> --install-dir <dir>
+rx list
+rx run <name> [-- <args...>]
+rxx <script> [-- <args...>]
 ```
 
 Examples:
@@ -58,7 +61,22 @@ rx install ./scripts/preflight.rs
 rx install https://raw.githubusercontent.com/example/repo/main/script.rs
 rx install <github-blob-url>
 rx install ./scripts --install-dir ~/.local/bin
+rx list
+rx run preflight -- --check
+rxx ./scripts/preflight.rs -- --check
 ```
+
+`rx list` prints one tab-delimited row per installed command:
+
+```text
+name	description	installed-path	source
+```
+
+If a description is not yet known, `rx list` prints `-` in that column.
+
+`rx run` resolves a command from the registry and executes it through the runtime adapter for its
+stored runtime. `rxx` runs a compatible script directly without installing it first, using the same
+runtime selection layer.
 
 ## Script Validation Rules
 
@@ -121,10 +139,12 @@ What `rx` does today:
 - install scripts from files, directories, and URLs
 - maintain a registry of installed commands
 - replace registry entries on reinstall by command name
+- list installed commands from the CLI
+- run installed rust-script commands through `rx`
+- execute compatible rust-script files directly through `rxx`
 
 What is not implemented yet:
 
-- listing installed commands from the CLI
-- running installed commands through `rx`
 - remote directory or repository installs
 - metadata extraction beyond the placeholder description field
+- runtime adapters beyond the current `rust-script` implementation
