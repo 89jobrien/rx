@@ -1,0 +1,26 @@
+project: rx
+id: rx
+updated: 2026-04-16
+
+items:
+  - id: rx-1
+    name: wire-preflight-input-paths
+    priority: P2
+    status: open
+    title: Feed changed file paths into the shell preflight fast path
+    description: Pass relevant changed paths into `scripts/preflight.sh` so the fast non-blocking preflight can report useful inputs without walking the repo.
+    files: [scripts/preflight.sh, examples/demo.sh, examples/smoke.sh]
+
+log:
+  - date: 2026-04-16
+    summary: Added a shell preflight example, kept the Rust preflight for direct comparison, and updated README/demo/smoke to explain the shared command-name collision.
+    commits: [1718d5b]
+  - date: 2026-04-16
+    summary: Split the repo into workspace crates for `rx-core`, `rx-registry-json`, `rx-install`, and `rxx`.
+    commits: [c494a20]
+  - date: 2026-04-16
+    summary: Added multi-runtime script support and expanded the examples/scripts matrix.
+    commits: [ebad828]
+  - date: 2026-04-16
+    summary: Added local demo and smoke examples for install, list, run, and direct execution flows.
+    commits: [a2600cb]
