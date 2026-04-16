@@ -34,6 +34,9 @@ items:
 
 log:
   - date: 2026-04-15
+    summary: Expanded the README, pinned the local mise toolchain, and added registry-backed install tracking with XDG default paths and tests.
+    commits: [caab348, 7a4175d]
+  - date: 2026-04-15
     summary: Restored crate metadata URLs, created and pushed the GitHub repository, and opened the initial feature issue set.
     commits: [22a2870]
   - date: 2026-04-15
