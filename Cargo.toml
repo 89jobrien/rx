@@ -1,31 +1,16 @@
-[package]
-name = "rx-install"
+[workspace]
+members = [
+    "crates/rx-core",
+    "crates/rx-registry-json",
+    "crates/rx-install",
+    "crates/rxx",
+]
+resolver = "2"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
-description = "Install rust-scripts from local directories, files, and URLs"
-documentation = "https://docs.rs/rx-install"
+license = "MIT"
 homepage = "https://github.com/89jobrien/rx"
 repository = "https://github.com/89jobrien/rx"
-readme = "README.md"
-license = "MIT"
-keywords = ["rust-script", "installer", "scripts", "cli"]
-categories = ["command-line-utilities", "development-tools"]
 
-[dependencies]
-anyhow = "1.0.100"
-clap = { version = "4.5.39", features = ["derive"] }
-reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "rustls-tls"] }
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145"
-walkdir = "2.5.0"
-
-[dev-dependencies]
-tempfile = "3.23.0"
-
-[lib]
-name = "rx"
-path = "src/lib.rs"
-
-[[bin]]
-name = "rx"
-path = "src/main.rs"

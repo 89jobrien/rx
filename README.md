@@ -25,16 +25,18 @@ If `XDG_CONFIG_HOME` is set, `rx` uses `$XDG_CONFIG_HOME/rx` instead of `~/.conf
 
 ## Installation
 
-Install the CLI from this repo:
+Install the CLIs from this repo:
 
 ```bash
-cargo install --path .
+cargo install --path crates/rx-install
+cargo install --path crates/rxx
 ```
 
 Or from crates.io when published:
 
 ```bash
 cargo install rx-install
+cargo install rxx
 ```
 
 For local development, bootstrap the pinned toolchain with:
@@ -51,6 +53,14 @@ rx install <source> --install-dir <dir>
 rx list
 rx run <name> [-- <args...>]
 rxx <script> [-- <args...>]
+```
+
+For local development from the workspace root:
+
+```bash
+cargo run --quiet -p rx-install --bin rx -- list
+cargo run --quiet -p rx-install --bin rx -- run preflight -- --check
+cargo run --quiet -p rxx --bin rxx -- ./scripts/preflight.rs -- --check
 ```
 
 Examples:
@@ -107,6 +117,7 @@ runtime selection layer.
 - `#!/usr/bin/env zsh`
 - `#!/usr/bin/env fish`
 - `#!/usr/bin/env nu`
+- `#!/usr/bin/env ruby`
 
 Behavior by source type:
 
@@ -127,7 +138,7 @@ Current registry entries include:
 - command name
 - original source
 - installed path
-- runtime, one of `rust-script`, `python`, `javascript`, `typescript`, `bash`, `zsh`, `fish`, or `nushell`
+- runtime, one of `rs`, `py`, `js`, `ts`, `sh`, `zsh`, `fish`, `nu`, or `rb`
 - optional description, currently unset
 
 Example:
@@ -140,7 +151,7 @@ Example:
       "name": "preflight",
       "source": "./scripts/preflight.rs",
       "install_path": "/Users/alice/.config/rx/bin/preflight",
-      "runtime": "rust-script",
+      "runtime": "rs",
       "description": null
     }
   ]
@@ -171,3 +182,12 @@ What is not implemented yet:
 - remote directory or repository installs
 - metadata extraction beyond the placeholder description field
 - interpreter discovery and fallback logic beyond the current direct launcher mapping
+
+## Workspace Layout
+
+The repo is structured as a small Cargo workspace:
+
+- `crates/rx-core`: runtime detection, install rules, and execution planning
+- `crates/rx-registry-json`: JSON registry persistence and HTTP fetching adapters
+- `crates/rx-install`: the `rx` CLI
+- `crates/rxx`: the `rxx` CLI

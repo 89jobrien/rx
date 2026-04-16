@@ -1,0 +1,16 @@
+[package]
+name = "rx-registry-json"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "JSON registry and HTTP fetcher adapters for rx"
+
+[dependencies]
+anyhow = "1.0.100"
+reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "rustls-tls"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+rx-core = { path = "../rx-core" }
+

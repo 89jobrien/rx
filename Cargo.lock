@@ -913,16 +913,44 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
+name = "rx-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "walkdir",
+]
+
+[[package]]
 name = "rx-install"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "rx-core",
+ "rx-registry-json",
+]
+
+[[package]]
+name = "rx-registry-json"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
  "reqwest",
+ "rx-core",
  "serde",
  "serde_json",
- "tempfile",
- "walkdir",
+]
+
+[[package]]
+name = "rxx"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "rx-core",
 ]
 
 [[package]]

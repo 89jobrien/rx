@@ -1,18 +1,19 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use rx::{
-    InstallRequest, RunRequest, default_paths, format_registry_entry, install, list_installed,
-    run_installed,
+use rx_core::{
+    ExecutionPlan, InstallRequest, RunRequest, format_registry_entry, install, list_installed,
+    plan_installed_run,
 };
+use rx_registry_json::{JsonRegistryStore, ReqwestFetcher, default_paths};
 use std::{
     path::PathBuf,
-    process::{ExitStatus, exit},
+    process::{ExitStatus, Stdio, exit},
 };
 
 #[derive(Debug, Parser)]
 #[command(
     name = "rx",
-    about = "Install rust-script scripts from local or remote sources"
+    about = "Install compatible scripts from local or remote sources"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -49,11 +50,15 @@ fn main() -> Result<()> {
             install_dir,
         } => {
             let paths = default_paths()?;
-            let report = install(&InstallRequest {
-                source,
-                install_dir,
-                registry_path: paths.registry_path,
-            })?;
+            let mut registry = JsonRegistryStore::new(paths.registry_path);
+            let report = install(
+                &InstallRequest {
+                    source,
+                    install_dir,
+                },
+                &mut registry,
+                &ReqwestFetcher,
+            )?;
 
             for script in &report.installed {
                 println!(
@@ -65,14 +70,15 @@ fn main() -> Result<()> {
             }
 
             if !report.skipped.is_empty() {
-                eprintln!("skipped non-rust-script files:");
+                eprintln!("skipped incompatible files:");
                 for item in &report.skipped {
                     eprintln!("  {item}");
                 }
             }
         }
         Command::List { registry_path } => {
-            for entry in list_installed(&registry_path)? {
+            let registry = JsonRegistryStore::new(registry_path);
+            for entry in list_installed(&registry)? {
                 println!("{}", format_registry_entry(&entry));
             }
         }
@@ -81,11 +87,9 @@ fn main() -> Result<()> {
             registry_path,
             args,
         } => {
-            let status = run_installed(&RunRequest {
-                name,
-                registry_path,
-                args,
-            })?;
+            let registry = JsonRegistryStore::new(registry_path);
+            let plan = plan_installed_run(&RunRequest { name, args }, &registry)?;
+            let status = execute_plan(&plan)?;
             exit_with_status(status);
         }
     }
@@ -103,6 +107,16 @@ fn default_registry_path() -> PathBuf {
     default_paths()
         .map(|paths| paths.registry_path)
         .unwrap_or_else(|_| PathBuf::from("registry.json"))
+}
+
+fn execute_plan(plan: &ExecutionPlan) -> Result<ExitStatus> {
+    std::process::Command::new(&plan.program)
+        .args(&plan.args)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .with_context(|| format!("running {}", plan.program))
 }
 
 fn exit_with_status(status: ExitStatus) -> ! {

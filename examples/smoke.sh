@@ -9,8 +9,8 @@ trap 'rm -rf "$DEMO_HOME"' EXIT
 export XDG_CONFIG_HOME="$DEMO_HOME/config"
 export RUSTC_WRAPPER=""
 
-RX_BIN=(cargo run --quiet --bin rx --)
-RXX_BIN=(cargo run --quiet --bin rxx --)
+RX_BIN=(cargo run --quiet -p rx-install --bin rx --)
+RXX_BIN=(cargo run --quiet -p rxx --bin rxx --)
 EXAMPLE_DIR="$ROOT/examples/scripts"
 REGISTRY_PATH="$XDG_CONFIG_HOME/rx/registry.json"
 
