@@ -10,8 +10,18 @@ items:
     title: Add runtime adapters for Python, JS/TS, and shell scripts in `rxx`
     description: Extend compatible-script execution to Python via uv, JavaScript and TypeScript via bun, and shell scripts via bash, fish, zsh, and nushell.
     files: [src/lib.rs, src/main.rs, src/bin/rxx.rs]
+    extra:
+      - date: 2026-04-16
+        type: escalation
+        note: >
+          Surfaced as highest urgency in cross-project handup survey (2026-04-16).
+          This is the only remaining open HANDOFF item after `rx list`, `rx run`, and `rxx` landed.
 
 log:
+  - date: 2026-04-16
+    summary: >
+      handdown analysis pass — 1 item annotated.
+      `rx-inst-4` is now the recommended next focus after the runtime execution work shipped.
   - date: 2026-04-16
     summary: Added `rx list`, `rx run`, and the `rxx` direct runner on top of shared rust-script execution planning, README updates, and tests.
     commits: []
