@@ -79,9 +79,9 @@ For a terse end-to-end verification script:
 ```
 
 The demo is a guided walkthrough. The smoke script is the same core flow with minimal narration.
-Both install `examples/hello.rs` into a temporary XDG config root, show the generated registry
-entry, run the installed command through `rx run`, and then run the same script directly through
-`rxx`.
+Both install `examples/scripts/` into a temporary XDG config root, show the generated registry
+entries, run installed Rust and Python commands through `rx run`, and then execute JavaScript,
+TypeScript, Bash, Zsh, Fish, and Nushell examples directly through `rxx`.
 
 `rx list` prints one tab-delimited row per installed command:
 
@@ -97,10 +97,16 @@ runtime selection layer.
 
 ## Script Validation Rules
 
-`rx` only installs files that start with one of these shebangs:
+`rx` currently accepts files that start with one of these shebang families:
 
 - `#!/usr/bin/env rust-script`
 - `#!/usr/bin/rust-script`
+- `#!/usr/bin/env python3` and related Python shebangs
+- `#!/usr/bin/env node` / `#!/usr/bin/env bun` for JavaScript and TypeScript
+- `#!/usr/bin/env bash`
+- `#!/usr/bin/env zsh`
+- `#!/usr/bin/env fish`
+- `#!/usr/bin/env nu`
 
 Behavior by source type:
 
@@ -121,7 +127,7 @@ Current registry entries include:
 - command name
 - original source
 - installed path
-- runtime, currently always `rust-script`
+- runtime, one of `rust-script`, `python`, `javascript`, `typescript`, `bash`, `zsh`, `fish`, or `nushell`
 - optional description, currently unset
 
 Example:
@@ -145,7 +151,7 @@ Example:
 
 The installed command name is derived from the script filename stem:
 
-- `hello.rs` becomes `hello`
+- `hello-rust.rs` becomes `hello-rust`
 - `scripts/tools/preflight.rs` becomes `preflight`
 - a remote URL ending in `script.rs` becomes `script`
 
@@ -157,11 +163,11 @@ What `rx` does today:
 - maintain a registry of installed commands
 - replace registry entries on reinstall by command name
 - list installed commands from the CLI
-- run installed rust-script commands through `rx`
-- execute compatible rust-script files directly through `rxx`
+- run installed compatible commands through `rx`
+- execute compatible scripts directly through `rxx`
 
 What is not implemented yet:
 
 - remote directory or repository installs
 - metadata extraction beyond the placeholder description field
-- runtime adapters beyond the current `rust-script` implementation
+- interpreter discovery and fallback logic beyond the current direct launcher mapping

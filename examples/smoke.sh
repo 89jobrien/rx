@@ -11,7 +11,7 @@ export RUSTC_WRAPPER=""
 
 RX_BIN=(cargo run --quiet --bin rx --)
 RXX_BIN=(cargo run --quiet --bin rxx --)
-EXAMPLE_SCRIPT="$ROOT/examples/hello.rs"
+EXAMPLE_DIR="$ROOT/examples/scripts"
 REGISTRY_PATH="$XDG_CONFIG_HOME/rx/registry.json"
 
 run() {
@@ -19,16 +19,24 @@ run() {
   "$@"
 }
 
-if ! command -v rust-script >/dev/null 2>&1; then
-  echo "rust-script is required for the smoke test but is not on PATH." >&2
-  exit 1
-fi
+for tool in rust-script uv bun bash zsh fish nu; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "$tool is required for the smoke test but is not on PATH." >&2
+    exit 1
+  fi
+done
 
 echo "rx smoke root: $ROOT"
 echo "temporary XDG_CONFIG_HOME: $XDG_CONFIG_HOME"
 
-run "${RX_BIN[@]}" install "$EXAMPLE_SCRIPT"
+run "${RX_BIN[@]}" install "$EXAMPLE_DIR"
 run "${RX_BIN[@]}" list
 run cat "$REGISTRY_PATH"
-run "${RX_BIN[@]}" run hello -- --name rx
-run "${RXX_BIN[@]}" "$EXAMPLE_SCRIPT" -- --name direct
+run "${RX_BIN[@]}" run hello-rust -- --name rx
+run "${RX_BIN[@]}" run hello-python -- --name rx
+run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-javascript.js" -- --name direct
+run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-typescript.ts" -- --name direct
+run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-bash.sh" -- --name direct
+run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-zsh.zsh" -- --name direct
+run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-fish.fish" -- --name direct
+run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-nushell.nu" -- --name direct

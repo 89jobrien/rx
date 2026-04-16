@@ -9,6 +9,22 @@ use std::{
 use walkdir::WalkDir;
 
 const RUST_SCRIPT_SHEBANGS: &[&str] = &["#!/usr/bin/env rust-script", "#!/usr/bin/rust-script"];
+const PYTHON_SHEBANGS: &[&str] = &[
+    "#!/usr/bin/env python",
+    "#!/usr/bin/env python3",
+    "#!/usr/bin/python",
+    "#!/usr/bin/python3",
+];
+const JS_TS_SHEBANGS: &[&str] = &[
+    "#!/usr/bin/env node",
+    "#!/usr/bin/node",
+    "#!/usr/bin/env bun",
+    "#!/usr/bin/bun",
+];
+const BASH_SHEBANGS: &[&str] = &["#!/usr/bin/env bash", "#!/bin/bash"];
+const ZSH_SHEBANGS: &[&str] = &["#!/usr/bin/env zsh", "#!/bin/zsh"];
+const FISH_SHEBANGS: &[&str] = &["#!/usr/bin/env fish", "#!/usr/bin/fish"];
+const NUSHELL_SHEBANGS: &[&str] = &["#!/usr/bin/env nu", "#!/usr/bin/nu"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstallRequest {
@@ -48,6 +64,13 @@ pub struct InstallReport {
 #[serde(rename_all = "kebab-case")]
 pub enum Runtime {
     RustScript,
+    Python,
+    JavaScript,
+    TypeScript,
+    Bash,
+    Zsh,
+    Fish,
+    Nushell,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -160,7 +183,7 @@ fn install_local_directory(source_dir: &Path, install_dir: &Path) -> Result<Inst
 
         let path = entry.into_path();
         match read_and_validate_script(&path) {
-            Ok(contents) => {
+            Ok((contents, runtime)) => {
                 let destination = install_contents(
                     &script_name(&path)?,
                     &contents,
@@ -172,7 +195,7 @@ fn install_local_directory(source_dir: &Path, install_dir: &Path) -> Result<Inst
                     name,
                     source: path.display().to_string(),
                     destination,
-                    runtime: Runtime::RustScript,
+                    runtime,
                 });
             }
             Err(_) => skipped.push(path.display().to_string()),
@@ -181,7 +204,7 @@ fn install_local_directory(source_dir: &Path, install_dir: &Path) -> Result<Inst
 
     if installed.is_empty() {
         bail!(
-            "no rust-script shebang files found under {}",
+            "no compatible script shebang files found under {}",
             source_dir.display()
         );
     }
@@ -190,7 +213,7 @@ fn install_local_directory(source_dir: &Path, install_dir: &Path) -> Result<Inst
 }
 
 fn install_local_file(source_file: &Path, install_dir: &Path) -> Result<InstalledScript> {
-    let contents = read_and_validate_script(source_file)?;
+    let (contents, runtime) = read_and_validate_script(source_file)?;
     let name = script_name(source_file)?;
     let destination = install_contents(
         &name,
@@ -203,7 +226,7 @@ fn install_local_file(source_file: &Path, install_dir: &Path) -> Result<Installe
         name,
         source: source_file.display().to_string(),
         destination,
-        runtime: Runtime::RustScript,
+        runtime,
     })
 }
 
@@ -217,7 +240,7 @@ fn install_remote_file(source_url: &str, install_dir: &Path) -> Result<Installed
         .text()
         .with_context(|| format!("reading response body from {source_url}"))?;
 
-    validate_script_contents(&contents, source_url)?;
+    let runtime = validate_script_contents(&contents, source_url)?;
     let name = script_name_from_url(source_url)?;
     let destination = install_contents(&name, &contents, install_dir, source_url)?;
 
@@ -225,20 +248,19 @@ fn install_remote_file(source_url: &str, install_dir: &Path) -> Result<Installed
         name,
         source: source_url.to_string(),
         destination,
-        runtime: Runtime::RustScript,
+        runtime,
     })
 }
 
-fn read_and_validate_script(path: &Path) -> Result<String> {
+fn read_and_validate_script(path: &Path) -> Result<(String, Runtime)> {
     let contents =
         fs::read_to_string(path).with_context(|| format!("reading script {}", path.display()))?;
-    validate_script_contents(&contents, &path.display().to_string())?;
-    Ok(contents)
+    let runtime = validate_script_contents(&contents, &path.display().to_string())?;
+    Ok((contents, runtime))
 }
 
-fn validate_script_contents(contents: &str, label: &str) -> Result<()> {
-    let _ = detect_runtime(contents, label)?;
-    Ok(())
+fn validate_script_contents(contents: &str, label: &str) -> Result<Runtime> {
+    detect_runtime(contents, label)
 }
 
 fn detect_runtime(contents: &str, label: &str) -> Result<Runtime> {
@@ -250,8 +272,39 @@ fn detect_runtime(contents: &str, label: &str) -> Result<Runtime> {
     if RUST_SCRIPT_SHEBANGS.contains(&first_line) {
         return Ok(Runtime::RustScript);
     }
+    if PYTHON_SHEBANGS.contains(&first_line) {
+        return Ok(Runtime::Python);
+    }
+    if JS_TS_SHEBANGS.contains(&first_line) {
+        return Ok(match runtime_from_extension(label) {
+            Some(Runtime::TypeScript) => Runtime::TypeScript,
+            _ => Runtime::JavaScript,
+        });
+    }
+    if BASH_SHEBANGS.contains(&first_line) {
+        return Ok(Runtime::Bash);
+    }
+    if ZSH_SHEBANGS.contains(&first_line) {
+        return Ok(Runtime::Zsh);
+    }
+    if FISH_SHEBANGS.contains(&first_line) {
+        return Ok(Runtime::Fish);
+    }
+    if NUSHELL_SHEBANGS.contains(&first_line) {
+        return Ok(Runtime::Nushell);
+    }
 
-    bail!("unsupported script type for {label}: expected rust-script shebang");
+    bail!("unsupported script type for {label}: expected a supported script shebang");
+}
+
+fn runtime_from_extension(label: &str) -> Option<Runtime> {
+    let extension = Path::new(label).extension().and_then(OsStr::to_str)?;
+
+    match extension {
+        "ts" | "tsx" | "mts" | "cts" => Some(Runtime::TypeScript),
+        "js" | "jsx" | "mjs" | "cjs" => Some(Runtime::JavaScript),
+        _ => None,
+    }
 }
 
 fn install_contents(
@@ -426,16 +479,23 @@ fn plan_direct_execution(script_path: &Path, args: &[String]) -> Result<Executio
 }
 
 fn build_execution_plan(script_path: &Path, runtime: &Runtime, args: &[String]) -> ExecutionPlan {
-    match runtime {
-        Runtime::RustScript => {
-            let mut invocation_args = Vec::with_capacity(args.len() + 1);
-            invocation_args.push(script_path.display().to_string());
-            invocation_args.extend(args.iter().cloned());
-            ExecutionPlan {
-                program: "rust-script".to_string(),
-                args: invocation_args,
-            }
-        }
+    let script = script_path.display().to_string();
+    let (program, prefix_args): (&str, Vec<String>) = match runtime {
+        Runtime::RustScript => ("rust-script", vec![script]),
+        Runtime::Python => ("uv", vec!["run".to_string(), script]),
+        Runtime::JavaScript | Runtime::TypeScript => ("bun", vec![script]),
+        Runtime::Bash => ("bash", vec![script]),
+        Runtime::Zsh => ("zsh", vec![script]),
+        Runtime::Fish => ("fish", vec![script]),
+        Runtime::Nushell => ("nu", vec![script]),
+    };
+
+    let mut invocation_args = prefix_args;
+    invocation_args.extend(args.iter().cloned());
+
+    ExecutionPlan {
+        program: program.to_string(),
+        args: invocation_args,
     }
 }
 
@@ -524,21 +584,44 @@ mod tests {
     }
 
     #[test]
-    fn rejects_non_rust_script_file() {
+    fn installs_python_script_with_python_runtime() -> Result<()> {
         let source_dir = tempdir().expect("tempdir");
         let install_dir = tempdir().expect("tempdir");
         let registry_dir = tempdir().expect("tempdir");
-        let script_path = source_dir.path().join("bad.py");
+        let script_path = source_dir.path().join("hello.py");
         fs::write(&script_path, "#!/usr/bin/env python3\nprint('hi')\n").expect("write script");
+
+        let report = install(&InstallRequest {
+            source: script_path.display().to_string(),
+            install_dir: install_dir.path().to_path_buf(),
+            registry_path: registry_dir.path().join("registry.json"),
+        })?;
+
+        assert_eq!(report.installed.len(), 1);
+        assert_eq!(report.installed[0].runtime, Runtime::Python);
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_unsupported_script_file() {
+        let source_dir = tempdir().expect("tempdir");
+        let install_dir = tempdir().expect("tempdir");
+        let registry_dir = tempdir().expect("tempdir");
+        let script_path = source_dir.path().join("bad.rb");
+        fs::write(&script_path, "#!/usr/bin/env ruby\nputs 'hi'\n").expect("write script");
 
         let error = install(&InstallRequest {
             source: script_path.display().to_string(),
             install_dir: install_dir.path().to_path_buf(),
             registry_path: registry_dir.path().join("registry.json"),
         })
-        .expect_err("non-rust-script file should fail");
+        .expect_err("unsupported file should fail");
 
-        assert!(error.to_string().contains("expected rust-script shebang"));
+        assert!(
+            error
+                .to_string()
+                .contains("expected a supported script shebang")
+        );
     }
 
     #[test]
@@ -684,5 +767,99 @@ mod tests {
             vec![script_path.display().to_string(), "--demo".to_string()]
         );
         Ok(())
+    }
+
+    #[test]
+    fn detect_runtime_supports_python_js_ts_and_shells() -> Result<()> {
+        let cases = [
+            (
+                "#!/usr/bin/env python3\nprint('hi')\n",
+                "demo.py",
+                Runtime::Python,
+            ),
+            (
+                "#!/usr/bin/env node\nconsole.log('hi')\n",
+                "demo.js",
+                Runtime::JavaScript,
+            ),
+            (
+                "#!/usr/bin/env node\nconsole.log('hi')\n",
+                "demo.ts",
+                Runtime::TypeScript,
+            ),
+            ("#!/usr/bin/env bash\necho hi\n", "demo.sh", Runtime::Bash),
+            ("#!/usr/bin/env zsh\necho hi\n", "demo.zsh", Runtime::Zsh),
+            ("#!/usr/bin/env fish\necho hi\n", "demo.fish", Runtime::Fish),
+            (
+                "#!/usr/bin/env nu\nprint 'hi'\n",
+                "demo.nu",
+                Runtime::Nushell,
+            ),
+        ];
+
+        for (contents, label, expected) in cases {
+            assert_eq!(detect_runtime(contents, label)?, expected);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn build_execution_plan_uses_expected_launchers_for_supported_runtimes() {
+        let cases = [
+            (
+                Runtime::Python,
+                "/tmp/demo.py",
+                "uv",
+                vec![
+                    "run".to_string(),
+                    "/tmp/demo.py".to_string(),
+                    "--flag".to_string(),
+                ],
+            ),
+            (
+                Runtime::JavaScript,
+                "/tmp/demo.js",
+                "bun",
+                vec!["/tmp/demo.js".to_string(), "--flag".to_string()],
+            ),
+            (
+                Runtime::TypeScript,
+                "/tmp/demo.ts",
+                "bun",
+                vec!["/tmp/demo.ts".to_string(), "--flag".to_string()],
+            ),
+            (
+                Runtime::Bash,
+                "/tmp/demo.sh",
+                "bash",
+                vec!["/tmp/demo.sh".to_string(), "--flag".to_string()],
+            ),
+            (
+                Runtime::Zsh,
+                "/tmp/demo.zsh",
+                "zsh",
+                vec!["/tmp/demo.zsh".to_string(), "--flag".to_string()],
+            ),
+            (
+                Runtime::Fish,
+                "/tmp/demo.fish",
+                "fish",
+                vec!["/tmp/demo.fish".to_string(), "--flag".to_string()],
+            ),
+            (
+                Runtime::Nushell,
+                "/tmp/demo.nu",
+                "nu",
+                vec!["/tmp/demo.nu".to_string(), "--flag".to_string()],
+            ),
+        ];
+
+        for (runtime, script_path, program, args) in cases {
+            let plan =
+                build_execution_plan(Path::new(script_path), &runtime, &["--flag".to_string()]);
+            assert_eq!(plan.program, program);
+            assert_eq!(plan.args, args);
+        }
     }
 }

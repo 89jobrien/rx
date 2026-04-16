@@ -11,8 +11,15 @@ export RUSTC_WRAPPER=""
 
 RX_BIN=(cargo run --quiet --bin rx --)
 RXX_BIN=(cargo run --quiet --bin rxx --)
-EXAMPLE_SCRIPT="$ROOT/examples/hello.rs"
+EXAMPLE_DIR="$ROOT/examples/scripts"
 REGISTRY_PATH="$XDG_CONFIG_HOME/rx/registry.json"
+
+require_tool() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "$1 is required for this demo but is not on PATH." >&2
+    exit 1
+  fi
+}
 
 section() {
   printf '\n== %s ==\n' "$1"
@@ -23,23 +30,22 @@ run() {
   "$@"
 }
 
-if ! command -v rust-script >/dev/null 2>&1; then
-  echo "rust-script is required for the demo but is not on PATH." >&2
-  exit 1
-fi
+for tool in rust-script uv bun bash zsh fish nu; do
+  require_tool "$tool"
+done
 
 cat <<EOF
 rx demo
 repo root: $ROOT
 temporary XDG_CONFIG_HOME: $XDG_CONFIG_HOME
 
-This walkthrough installs a sample script, shows the generated registry,
-runs the installed command through rx, and then runs the same script
+This walkthrough installs a directory of example scripts, shows the generated
+registry, runs installed commands through rx, and then exercises each runtime
 directly through rxx.
 EOF
 
-section "1. Install the sample script"
-run "${RX_BIN[@]}" install "$EXAMPLE_SCRIPT"
+section "1. Install the example script directory"
+run "${RX_BIN[@]}" install "$EXAMPLE_DIR"
 
 section "2. Discover what rx installed"
 run "${RX_BIN[@]}" list
@@ -47,11 +53,17 @@ run "${RX_BIN[@]}" list
 section "3. Inspect the registry entry"
 run cat "$REGISTRY_PATH"
 
-section "4. Execute the installed command with rx run"
-run "${RX_BIN[@]}" run hello -- --name rx
+section "4. Execute installed commands with rx run"
+run "${RX_BIN[@]}" run hello-rust -- --name rx
+run "${RX_BIN[@]}" run hello-python -- --name rx
 
-section "5. Execute the source file directly with rxx"
-run "${RXX_BIN[@]}" "$EXAMPLE_SCRIPT" -- --name direct
+section "5. Execute source files directly with rxx"
+run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-javascript.js" -- --name direct
+run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-typescript.ts" -- --name direct
+run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-bash.sh" -- --name direct
+run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-zsh.zsh" -- --name direct
+run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-fish.fish" -- --name direct
+run "${RXX_BIN[@]}" "$EXAMPLE_DIR/hello-nushell.nu" -- --name direct
 
 section "Done"
 cat <<EOF
