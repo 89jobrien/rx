@@ -1,0 +1,61 @@
+name: Slash Commands
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  dispatch-ci:
+    name: dispatch PR CI command
+    if: ${{ github.event.issue.pull_request && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse slash command
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.comment.body.trim().split(/\r?\n/, 1)[0].trim();
+            const mapping = {
+              '/ci': 'all',
+              '/fmt': 'fmt',
+              '/clippy': 'clippy',
+              '/test': 'test',
+              '/build': 'build',
+            };
+            const target = mapping[body] ?? '';
+            core.setOutput('matched', target ? 'true' : 'false');
+            core.setOutput('target', target);
+
+      - name: Read PR head ref
+        id: pr
+        if: steps.parse.outputs.matched == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.issue.number,
+            });
+            core.setOutput('ref', pr.data.head.ref);
+
+      - name: Dispatch CI workflow
+        if: steps.parse.outputs.matched == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ci.yml',
+              ref: '${{ steps.pr.outputs.ref }}',
+              inputs: {
+                target: '${{ steps.parse.outputs.target }}',
+              },
+            });

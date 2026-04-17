@@ -20,6 +20,7 @@ Unless you override the install directory on the command line, `rx` uses XDG-sty
 
 - install directory: `~/.config/rx/bin`
 - registry file: `~/.config/rx/registry.json`
+- prefix config: `~/.config/rx/prefixes.toml`
 
 If `XDG_CONFIG_HOME` is set, `rx` uses `$XDG_CONFIG_HOME/rx` instead of `~/.config/rx`.
 
@@ -31,6 +32,18 @@ Install the CLIs from this repo:
 cargo install --path crates/rx-install
 cargo install --path crates/rxx
 ```
+
+If the crates are published on crates.io and release artifacts are available, `cargo-binstall`
+installs by package name:
+
+```bash
+cargo binstall rx-install
+cargo binstall rxx
+```
+
+`cargo-binstall` resolves crate metadata from crates.io and then looks at the linked repository
+releases for matching binary artifacts. It does not use the GitHub repo URL as the primary install
+argument.
 
 Or from crates.io when published:
 
@@ -52,6 +65,7 @@ rx install <source>
 rx install <source> --install-dir <dir>
 rx list
 rx run <name> [-- <args...>]
+rx <command> [args...]
 rxx <script> [-- <args...>]
 ```
 
@@ -107,6 +121,55 @@ If a description is not yet known, `rx list` prints `-` in that column.
 `rx run` resolves a command from the registry and executes it through the runtime adapter for its
 stored runtime. `rxx` runs a compatible script directly without installing it first, using the same
 runtime selection layer.
+
+Unknown `rx` subcommands are treated as passthrough commands. That makes `rx gh issue list` a
+valid invocation, and lets `rx` apply optional per-user launch prefixes before spawning the real
+binary.
+
+For passthrough commands, `rx` also auto-discovers simple command aliases from `~/.zshrc` and
+`~/.config/fish/config.fish`, plus fish abbreviations declared with `abbr -a` or `abbr --add`.
+That means aliases like `ocm='opencode -m ollama/gpt-mbx'` can be expanded before prefix handling.
+
+`rx` only expands safe alias bodies that are plain command-and-argument lists. Aliases that depend
+on shell control flow or builtins such as `cd`, `&&`, pipes, redirects, `source`, or `eval` are
+ignored rather than partially emulated.
+
+## Personal Prefix Learning
+
+`rx` auto-discovers a few machine-local defaults before it looks at `~/.config/rx/prefixes.toml`:
+
+- if `~/.config/op/plugins/*.json` exists, those command names default to `op plugin run --`
+- if `dotenvx` is on PATH, common AI/tooling commands like `gemini`, `claude`, `codex`,
+  `ollama`, `opencode`, and `toolz` default to `dotenvx run --`
+- if `~/.config/mise/config.toml` declares AI npm tools, `rx` also infers matching command names
+  from that global tool config when those binaries are installed
+
+If `~/.config/rx/prefixes.toml` exists, `rx` merges it on top of those defaults before spawning
+`rx run ...` plans or passthrough commands like `rx gh ...`.
+
+`mappings` stores exact learned command wrappers. `candidate_prefixes` stores generic wrappers that
+`rx` can try after an unmapped command fails. If a candidate wrapper succeeds and
+`learn_on_successful_fallback = true`, `rx` persists that wrapper for the command so future runs go
+straight to the learned mapping.
+
+Example:
+
+```toml
+learn_on_successful_fallback = true
+candidate_prefixes = [
+  ["op", "plugin", "run", "--"],
+  ["dotenvx", "run", "--"],
+]
+
+[mappings]
+gh = ["op", "plugin", "run", "--"]
+```
+
+With that config, `rx gh issue list` executes as `op plugin run -- gh issue list`, and future
+successful fallback discoveries are written back into the same file automatically.
+
+Because fallback learning may retry a command after an initial failure, it is best suited to
+idempotent commands or auth/bootstrap wrappers rather than destructive commands.
 
 ## Script Validation Rules
 

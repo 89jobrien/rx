@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::BTreeMap,
     ffi::OsStr,
     fs,
     path::{Path, PathBuf},
@@ -95,6 +96,16 @@ pub struct ExecutionPlan {
     pub args: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct CommandPrefixConfig {
+    #[serde(default)]
+    pub mappings: BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    pub candidate_prefixes: Vec<Vec<String>>,
+    #[serde(default)]
+    pub learn_on_successful_fallback: bool,
+}
+
 pub trait RegistryStore {
     fn list(&self) -> Result<Vec<RegistryEntry>>;
     fn upsert(&mut self, installed: &[InstalledScript]) -> Result<()>;
@@ -180,6 +191,21 @@ pub fn plan_direct_run(request: &DirectRunRequest) -> Result<ExecutionPlan> {
         &runtime,
         &request.args,
     ))
+}
+
+pub fn apply_command_prefix(plan: &ExecutionPlan, prefix: &[String]) -> Result<ExecutionPlan> {
+    let (program, prefix_args) = prefix
+        .split_first()
+        .ok_or_else(|| anyhow!("command prefix cannot be empty"))?;
+
+    let mut args = prefix_args.to_vec();
+    args.push(plan.program.clone());
+    args.extend(plan.args.clone());
+
+    Ok(ExecutionPlan {
+        program: program.clone(),
+        args,
+    })
 }
 
 enum ResolvedSource {
@@ -801,6 +827,49 @@ mod tests {
             assert_eq!(plan.program, program);
             assert_eq!(plan.args, args);
         }
+    }
+
+    #[test]
+    fn apply_command_prefix_wraps_existing_plan() -> Result<()> {
+        let plan = ExecutionPlan {
+            program: "gh".to_string(),
+            args: vec!["issue".to_string(), "list".to_string()],
+        };
+
+        let prefixed = apply_command_prefix(
+            &plan,
+            &[
+                "op".to_string(),
+                "plugin".to_string(),
+                "run".to_string(),
+                "--".to_string(),
+            ],
+        )?;
+
+        assert_eq!(prefixed.program, "op");
+        assert_eq!(
+            prefixed.args,
+            vec![
+                "plugin".to_string(),
+                "run".to_string(),
+                "--".to_string(),
+                "gh".to_string(),
+                "issue".to_string(),
+                "list".to_string(),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn apply_command_prefix_rejects_empty_prefix() {
+        let plan = ExecutionPlan {
+            program: "gh".to_string(),
+            args: Vec::new(),
+        };
+
+        let error = apply_command_prefix(&plan, &[]).expect_err("empty prefix should fail");
+        assert!(error.to_string().contains("command prefix cannot be empty"));
     }
 
     #[test]
