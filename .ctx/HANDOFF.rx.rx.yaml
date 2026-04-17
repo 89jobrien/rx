@@ -13,6 +13,9 @@ items:
 
 log:
   - date: 2026-04-17
+    summary: Extended documentation with command expansion order clarity, alias/prefix learning workflow, and added plugin scaffolding.
+    commits: []
+  - date: 2026-04-17
     summary: Added command prefix learning, shell alias expansion, and GitHub CI/slash-command workflows.
     commits: [50e9f4a]
   - date: 2026-04-16
