@@ -1,6 +1,6 @@
 project: rx
 id: rx
-updated: 2026-04-16
+updated: 2026-04-17
 
 items:
   - id: rx-1
@@ -12,6 +12,9 @@ items:
     files: [scripts/preflight.sh, examples/demo.sh, examples/smoke.sh]
 
 log:
+  - date: 2026-04-17
+    summary: Added command prefix learning, shell alias expansion, and GitHub CI/slash-command workflows.
+    commits: [50e9f4a]
   - date: 2026-04-16
     summary: Audited the backlog, captured four new `rx` follow-up issues in doob, and pruned the resolved `rx-install` handoff item.
     commits: []
