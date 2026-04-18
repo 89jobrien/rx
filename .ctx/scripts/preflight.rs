@@ -168,8 +168,9 @@ impl HandoffService {
 
     fn find_files(&self) -> Vec<PathBuf> {
         let mut hits = Vec::new();
+        let ctx = self.root.join(".ctx");
 
-        if let Ok(entries) = fs::read_dir(&self.root) {
+        if let Ok(entries) = fs::read_dir(&ctx) {
             for entry in entries.flatten() {
                 let name = entry.file_name();
                 let name = name.to_string_lossy();
@@ -214,6 +215,33 @@ impl HandoffService {
     }
 }
 
+const ALLOWED_EXTENSIONS: &[&str] = &[
+    "rs", "toml", "yaml", "yml", "md", "json", "sh", "py", "js", "ts", "tsx", "jsx", "zsh",
+    "fish", "nu",
+];
+
+fn print_relevant_inputs(console: &Console, paths: &[PathBuf]) {
+    console.section("Relevant inputs");
+
+    let filtered: Vec<&PathBuf> = paths
+        .iter()
+        .filter(|p| {
+            p.extension()
+                .and_then(|e| e.to_str())
+                .map(|e| ALLOWED_EXTENSIONS.contains(&e))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    if filtered.is_empty() {
+        println!("  (none provided)");
+    } else {
+        for path in filtered {
+            println!("  {}", path.display());
+        }
+    }
+}
+
 struct PreflightApp<'a, R> {
     console: Console,
     environment: EnvironmentInspector<'a, R>,
@@ -234,9 +262,10 @@ impl<'a, R: CommandRunner> PreflightApp<'a, R> {
         }
     }
 
-    fn run(&self, cwd: &Path) -> Result<()> {
+    fn run(&self, cwd: &Path, cli_paths: &[PathBuf]) -> Result<()> {
         self.console.header("╔══ preflight ══╗");
 
+        print_relevant_inputs(&self.console, cli_paths);
         self.print_environment(cwd);
         self.print_git_status();
         self.print_git_history();
@@ -324,7 +353,8 @@ impl<'a, R: CommandRunner> PreflightApp<'a, R> {
 
 fn main() -> Result<()> {
     let cwd = env::current_dir()?;
+    let cli_paths: Vec<PathBuf> = env::args().skip(1).map(PathBuf::from).collect();
     let runner = SystemCommandRunner;
     let app = PreflightApp::new(&runner, &cwd);
-    app.run(&cwd)
+    app.run(&cwd, &cli_paths)
 }

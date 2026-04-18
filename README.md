@@ -75,7 +75,7 @@ For local development from the workspace root:
 cargo run --quiet -p rx-install --bin rx -- list
 cargo run --quiet -p rx-install --bin rx -- run preflight
 cargo run --quiet -p rxx --bin rxx -- ./scripts/preflight.sh
-cargo run --quiet -p rxx --bin rxx -- ./scripts/preflight.rs
+cargo run --quiet -p rxx --bin rxx -- ./.ctx/scripts/preflight.rs
 ```
 
 Examples:
@@ -83,14 +83,14 @@ Examples:
 ```bash
 rx install scripts
 rx install ./scripts/preflight.sh
-rx install ./scripts/preflight.rs
+rx install ./.ctx/scripts/preflight.rs
 rx install https://raw.githubusercontent.com/example/repo/main/script.rs
 rx install <github-blob-url>
 rx install ./scripts --install-dir ~/.local/bin
 rx list
 rx run preflight
 rxx ./scripts/preflight.sh
-rxx ./scripts/preflight.rs
+rxx ./.ctx/scripts/preflight.rs
 ```
 
 For a full local walkthrough that leaves your real config untouched:
@@ -107,7 +107,7 @@ For a terse end-to-end verification script:
 
 The demo is a guided walkthrough. The smoke script is the same core flow with minimal narration.
 They install [preflight.sh](/Users/joe/dev/rx/scripts/preflight.sh) as the default fast-path
-command, keep [preflight.rs](/Users/joe/dev/rx/scripts/preflight.rs) as a richer direct-run
+command, keep [preflight.rs](/Users/joe/dev/rx/.ctx/scripts/preflight.rs) as a richer direct-run
 comparison script, and then exercise `examples/scripts/` through the same temporary XDG config root.
 
 `rx list` prints one tab-delimited row per installed command:
@@ -126,9 +126,10 @@ Unknown `rx` subcommands are treated as passthrough commands. That makes `rx gh 
 valid invocation, and lets `rx` apply optional per-user launch prefixes before spawning the real
 binary.
 
-For passthrough commands, `rx` also auto-discovers simple command aliases from `~/.zshrc` and
+For passthrough commands, `rx` first auto-discovers simple command aliases from `~/.zshrc` and
 `~/.config/fish/config.fish`, plus fish abbreviations declared with `abbr -a` or `abbr --add`.
-That means aliases like `ocm='opencode -m ollama/gpt-mbx'` can be expanded before prefix handling.
+That means aliases like `ocm='opencode -m ollama/gpt-mbx'` can be expanded before any prefix
+handling or fallback learning runs.
 
 `rx` only expands safe alias bodies that are plain command-and-argument lists. Aliases that depend
 on shell control flow or builtins such as `cd`, `&&`, pipes, redirects, `source`, or `eval` are
@@ -138,9 +139,10 @@ ignored rather than partially emulated.
 
 `rx` auto-discovers a few machine-local defaults before it looks at `~/.config/rx/prefixes.toml`:
 
-- if `~/.config/op/plugins/*.json` exists, those command names default to `op plugin run --`
+- if `~/.config/op/plugins/*.json` exists, those configured command names default to
+  `op plugin run --`
 - if `dotenvx` is on PATH, common AI/tooling commands like `gemini`, `claude`, `codex`,
-  `ollama`, `opencode`, and `toolz` default to `dotenvx run --`
+  `ollama`, `opencode`, `pi`, `deepagents`, and `toolz` default to `dotenvx run --`
 - if `~/.config/mise/config.toml` declares AI npm tools, `rx` also infers matching command names
   from that global tool config when those binaries are installed
 
@@ -170,6 +172,14 @@ successful fallback discoveries are written back into the same file automaticall
 
 Because fallback learning may retry a command after an initial failure, it is best suited to
 idempotent commands or auth/bootstrap wrappers rather than destructive commands.
+
+In practice the launch order is:
+
+1. expand a safe shell alias or fish abbreviation if one matches
+2. apply any discovered or user-configured exact mapping
+3. run the command directly
+4. if direct execution fails and fallback learning is enabled, try each candidate prefix until one
+   succeeds, then persist that mapping
 
 ## Script Validation Rules
 

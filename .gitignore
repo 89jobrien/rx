@@ -4,4 +4,6 @@
 .ctx/*
 !.ctx/HANDOFF.*.yaml
 .ctx/HANDOFF.*.state.yaml
+!.ctx/scripts/
+!.ctx/scripts/**
 # handoff-end

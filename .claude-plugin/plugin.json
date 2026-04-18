@@ -1,0 +1,16 @@
+{
+  "name": "rx",
+  "version": "0.1.0",
+  "description": "Dev companion and runtime integration for the rx script installer.",
+  "author": {
+    "name": "Joseph O'Brien"
+  },
+  "repository": "https://github.com/89jobrien/bazaar",
+  "keywords": ["rx", "scripts", "installer", "rust-script", "nushell"],
+  "skills": [
+    "./skills/rx-dev",
+    "./skills/rx-script-authoring",
+    "./skills/rx-install",
+    "./skills/rx-registry"
+  ]
+}

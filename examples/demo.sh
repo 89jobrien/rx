@@ -13,7 +13,7 @@ RX_BIN=(cargo run --quiet -p rx-install --bin rx --)
 RXX_BIN=(cargo run --quiet -p rxx --bin rxx --)
 EXAMPLE_DIR="$ROOT/examples/scripts"
 PREFLIGHT_SHELL="$ROOT/scripts/preflight.sh"
-PREFLIGHT_RUST="$ROOT/scripts/preflight.rs"
+PREFLIGHT_RUST="$ROOT/.ctx/scripts/preflight.rs"
 REGISTRY_PATH="$XDG_CONFIG_HOME/rx/registry.json"
 
 require_tool() {
@@ -59,7 +59,7 @@ section "4. Inspect the registry entry"
 run cat "$REGISTRY_PATH"
 
 section "5. Execute installed commands with rx run"
-run "${RX_BIN[@]}" run preflight
+run "${RX_BIN[@]}" run preflight -- "$PREFLIGHT_SHELL" "$PREFLIGHT_RUST"
 run "${RX_BIN[@]}" run hello-rust -- --name rx
 run "${RX_BIN[@]}" run hello-python -- --name rx
 

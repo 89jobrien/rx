@@ -98,8 +98,6 @@ print_handoffs() {
   local found=0
   local path
   local candidates=(
-    "$root"/HANDOFF*.yaml
-    "$root"/HANDOFF*.yml
     "$root"/.ctx/HANDOFF*.yaml
     "$root"/.ctx/HANDOFF*.yml
   )
