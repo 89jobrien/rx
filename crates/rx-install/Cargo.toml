@@ -10,8 +10,8 @@ description = "Install compatible scripts from local directories, files, and URL
 [dependencies]
 anyhow = "1.0.100"
 clap = { version = "4.5.39", features = ["derive"] }
-rx-script-core = { path = "../rx-script-core" }
-rx-registry-json = { path = "../rx-registry-json" }
+rx-script-core = { path = "../rx-script-core", version = "0.1.0" }
+rx-registry-json = { path = "../rx-registry-json", version = "0.1.0" }
 shell-words = "1.1.0"
 toml = "0.9.8"
 
