@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, anyhow};
-use rx_core::{InstalledScript, RegistryEntry, RegistryStore, RemoteScriptFetcher};
+use rx_script_core::{InstalledScript, RegistryEntry, RegistryStore, RemoteScriptFetcher};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,

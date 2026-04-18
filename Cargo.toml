@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "crates/rx-core",
+    "crates/rx-script-core",
     "crates/rx-registry-json",
     "crates/rx-install",
     "crates/rxx",

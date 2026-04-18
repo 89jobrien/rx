@@ -1,5 +1,5 @@
 [package]
-name = "rxx"
+name = "rx-rxx"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,7 +10,7 @@ description = "Execute compatible scripts directly"
 [dependencies]
 anyhow = "1.0.100"
 clap = { version = "4.5.39", features = ["derive"] }
-rx-core = { path = "../rx-core" }
+rx-script-core = { path = "../rx-script-core" }
 
 [[bin]]
 name = "rxx"

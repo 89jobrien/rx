@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
-use rx_core::{
+use rx_script_core::{
     CommandPrefixConfig, ExecutionPlan, InstallRequest, RunRequest, apply_command_prefix,
     format_registry_entry, install, list_installed, plan_installed_run,
 };
