@@ -78,19 +78,13 @@ is_relevant_file() {
 }
 
 print_relevant_inputs() {
-  local printed=0
   local path
 
   for path in "$@"; do
     if is_relevant_file "$path"; then
       printf '  %s\n' "$path"
-      printed=1
     fi
   done
-
-  if [[ $printed -eq 0 ]]; then
-    printf '  (none provided)\n'
-  fi
 }
 
 print_handoffs() {
@@ -121,8 +115,10 @@ BRANCH=$(resolve_branch "$GIT_DIR")
 printf 'preflight | %s | %s\n' "$BRANCH" "$ROOT"
 printf 'file rule: %s\n' "$FILE_RULE_LABEL"
 
-printf '\nrelevant inputs\n'
-print_relevant_inputs "$@"
+if [[ $# -gt 0 ]]; then
+  printf '\nrelevant inputs\n'
+  print_relevant_inputs "$@"
+fi
 
 printf '\nhandoff yaml\n'
 print_handoffs "$ROOT"
