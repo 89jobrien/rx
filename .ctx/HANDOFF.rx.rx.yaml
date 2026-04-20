@@ -1,36 +1,48 @@
-last_preflight: 2026-04-18 02:30:37 -0400
 project: rx
 id: rx
-updated: 2026-04-17
-
+updated: 2026-04-18
 items:
-  - id: rx-1
-    name: wire-preflight-input-paths
-    priority: P2
-    status: open
-    title: Feed changed file paths into the shell preflight fast path
-    description: Pass relevant changed paths into `scripts/preflight.sh` so the fast non-blocking preflight can report useful inputs without walking the repo.
-    files: [scripts/preflight.sh, examples/demo.sh, examples/smoke.sh]
-
+- id: rx-1
+  doob_uuid: null
+  name: wire-preflight-input-paths
+  priority: P2
+  status: done
+  title: Feed changed file paths into the shell preflight fast path
+  description: Pass relevant changed paths into `scripts/preflight.sh` so the fast non-blocking preflight can report useful inputs without walking the repo.
+  files:
+  - scripts/preflight.sh
+  - examples/demo.sh
+  - examples/smoke.sh
+  completed: 2026-04-19
+  extra: []
 log:
-  - date: 2026-04-17
-    summary: Extended documentation with command expansion order clarity, alias/prefix learning workflow, and added plugin scaffolding.
-    commits: []
-  - date: 2026-04-17
-    summary: Added command prefix learning, shell alias expansion, and GitHub CI/slash-command workflows.
-    commits: [50e9f4a]
-  - date: 2026-04-16
-    summary: Audited the backlog, captured four new `rx` follow-up issues in doob, and pruned the resolved `rx-install` handoff item.
-    commits: []
-  - date: 2026-04-16
-    summary: Added a shell preflight example, kept the Rust preflight for direct comparison, and updated README/demo/smoke to explain the shared command-name collision.
-    commits: [1718d5b]
-  - date: 2026-04-16
-    summary: Split the repo into workspace crates for `rx-core`, `rx-registry-json`, `rx-install`, and `rxx`.
-    commits: [c494a20]
-  - date: 2026-04-16
-    summary: Added multi-runtime script support and expanded the examples/scripts matrix.
-    commits: [ebad828]
-  - date: 2026-04-16
-    summary: Added local demo and smoke examples for install, list, run, and direct execution flows.
-    commits: [a2600cb]
+- date: 2026-04-19
+  summary: Verified rx-1 complete — preflight.sh accepts changed-path args (6b312c3), smoke.sh and demo.sh already exercise it. Closed item.
+  commits: []
+- date: 2026-04-17
+  summary: Extended documentation with command expansion order clarity, alias/prefix learning workflow, and added plugin scaffolding.
+  commits: []
+- date: 2026-04-17
+  summary: Added command prefix learning, shell alias expansion, and GitHub CI/slash-command workflows.
+  commits:
+  - 50e9f4a
+- date: 2026-04-16
+  summary: Audited the backlog, captured four new `rx` follow-up issues in doob, and pruned the resolved `rx-install` handoff item.
+  commits: []
+- date: 2026-04-16
+  summary: Added a shell preflight example, kept the Rust preflight for direct comparison, and updated README/demo/smoke to explain the shared command-name collision.
+  commits:
+  - 1718d5b
+- date: 2026-04-16
+  summary: Split the repo into workspace crates for `rx-core`, `rx-registry-json`, `rx-install`, and `rxx`.
+  commits:
+  - c494a20
+- date: 2026-04-16
+  summary: Added multi-runtime script support and expanded the examples/scripts matrix.
+  commits:
+  - ebad828
+- date: 2026-04-16
+  summary: Added local demo and smoke examples for install, list, run, and direct execution flows.
+  commits:
+  - a2600cb
+last_preflight: 2026-04-18 02:30:37 -0400
