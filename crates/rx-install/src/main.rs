@@ -2,11 +2,14 @@ use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use rx_script_core::{
     CommandPrefixConfig, ExecutionPlan, InstallRequest, RunRequest, apply_command_prefix,
-    format_registry_entry, install, list_installed, plan_installed_run,
+    format_registry_entry, install, list_installed, plan_direct_run, plan_installed_run,
 };
-use rx_registry_json::{JsonRegistryStore, ReqwestFetcher, default_paths};
+use rx_registry_json::{
+    FsScriptReader, FsScriptWriter, JsonRegistryStore, ReqwestFetcher, WalkdirScanner,
+    default_paths,
+};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
     process::{ExitStatus, Stdio, exit},
@@ -26,6 +29,66 @@ const AI_DOTENVX_COMMANDS: &[&str] = &[
 ];
 type AliasExpansion = (String, Vec<String>);
 type AliasParser = fn(&str) -> Option<AliasExpansion>;
+
+// --- Ports ---
+
+trait PlanRunner {
+    fn run(&self, plan: &ExecutionPlan) -> Result<ExitStatus>;
+}
+
+/// Port for loading and persisting the command-prefix config.
+trait PrefixConfigStore {
+    fn load(&self) -> Result<CommandPrefixConfig>;
+    fn save(&self, config: &CommandPrefixConfig) -> Result<()>;
+}
+
+/// Port for loading shell alias expansions from one or more sources.
+trait ShellAliasSource {
+    fn load_aliases(&self) -> Result<BTreeMap<String, Vec<String>>>;
+}
+
+// --- Adapters ---
+
+struct ProcessRunner;
+
+impl PlanRunner for ProcessRunner {
+    fn run(&self, plan: &ExecutionPlan) -> Result<ExitStatus> {
+        std::process::Command::new(&plan.program)
+            .args(&plan.args)
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .with_context(|| format!("running {}", plan.program))
+    }
+}
+
+/// Loads the prefix config from a TOML file, merging in auto-discovered
+/// defaults. Persists learned mappings back to the same path.
+struct TomlPrefixConfigStore {
+    path: PathBuf,
+}
+
+impl PrefixConfigStore for TomlPrefixConfigStore {
+    fn load(&self) -> Result<CommandPrefixConfig> {
+        load_prefix_config_with_defaults(&self.path, discover_prefix_config()?)
+    }
+
+    fn save(&self, config: &CommandPrefixConfig) -> Result<()> {
+        save_prefix_config(&self.path, config)
+    }
+}
+
+/// Reads alias expansions from `~/.zshrc` and `~/.config/fish/config.fish`.
+struct FsShellAliasSource;
+
+impl ShellAliasSource for FsShellAliasSource {
+    fn load_aliases(&self) -> Result<BTreeMap<String, Vec<String>>> {
+        discover_shell_command_expansions()
+    }
+}
+
+// --- CLI ---
 
 #[derive(Debug, Parser)]
 #[command(
@@ -69,7 +132,10 @@ enum Command {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let shell_aliases = discover_shell_command_expansions()?;
+    let shell_aliases = FsShellAliasSource.load_aliases()?;
+    let prefix_store = TomlPrefixConfigStore {
+        path: cli.prefix_config,
+    };
 
     match cli.command {
         Command::Install {
@@ -85,6 +151,8 @@ fn main() -> Result<()> {
                 },
                 &mut registry,
                 &ReqwestFetcher,
+                &FsScriptWriter,
+                &WalkdirScanner,
             )?;
 
             for script in &report.installed {
@@ -116,18 +184,30 @@ fn main() -> Result<()> {
         } => {
             let registry = JsonRegistryStore::new(registry_path);
             let plan = plan_installed_run(&RunRequest { name, args }, &registry)?;
-            let status = execute_plan(&ProcessRunner, &plan, &cli.prefix_config)?;
+            let status = execute_plan(&ProcessRunner, &plan, &prefix_store)?;
             exit_with_status(status);
         }
         Command::External(args) => {
             let plan = plan_external_command(&args, &shell_aliases)?;
-            let status = execute_plan(&ProcessRunner, &plan, &cli.prefix_config)?;
+            let status = execute_plan(&ProcessRunner, &plan, &prefix_store)?;
             exit_with_status(status);
         }
     }
 
     Ok(())
 }
+
+// --- rxx entry point (plan_direct_run wired with FsScriptReader) ---
+
+/// Used by the `rxx` binary (which lives in its own crate), exposed here for
+/// symmetry and to demonstrate the FsScriptReader wiring.
+pub fn direct_run_plan(
+    request: &rx_script_core::DirectRunRequest,
+) -> Result<ExecutionPlan> {
+    plan_direct_run(request, &FsScriptReader)
+}
+
+// --- Path defaults ---
 
 fn default_install_dir() -> PathBuf {
     default_paths()
@@ -147,9 +227,11 @@ fn default_prefix_config_path() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("prefixes.toml"))
 }
 
+// --- External command planning ---
+
 fn plan_external_command(
     args: &[String],
-    aliases: &std::collections::BTreeMap<String, Vec<String>>,
+    aliases: &BTreeMap<String, Vec<String>>,
 ) -> Result<ExecutionPlan> {
     let (program, rest) = args
         .split_first()
@@ -173,30 +255,14 @@ fn plan_external_command(
     })
 }
 
-trait PlanRunner {
-    fn run(&self, plan: &ExecutionPlan) -> Result<ExitStatus>;
-}
+// --- Execution with prefix learning ---
 
-struct ProcessRunner;
-
-impl PlanRunner for ProcessRunner {
-    fn run(&self, plan: &ExecutionPlan) -> Result<ExitStatus> {
-        std::process::Command::new(&plan.program)
-            .args(&plan.args)
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .status()
-            .with_context(|| format!("running {}", plan.program))
-    }
-}
-
-fn execute_plan<R: PlanRunner>(
+fn execute_plan<R: PlanRunner, S: PrefixConfigStore>(
     runner: &R,
     plan: &ExecutionPlan,
-    prefix_config_path: &Path,
+    store: &S,
 ) -> Result<ExitStatus> {
-    let mut prefix_config = load_prefix_config(prefix_config_path)?;
+    let mut prefix_config = store.load()?;
 
     if let Some(prefix) = prefix_config.mappings.get(&plan.program) {
         let prefixed = apply_command_prefix(plan, prefix)?;
@@ -215,7 +281,7 @@ fn execute_plan<R: PlanRunner>(
             prefix_config
                 .mappings
                 .insert(plan.program.clone(), candidate.clone());
-            save_prefix_config(prefix_config_path, &prefix_config)?;
+            store.save(&prefix_config)?;
             return candidate_result;
         }
     }
@@ -235,9 +301,7 @@ fn should_try_candidate_prefixes(
         }
 }
 
-fn load_prefix_config(path: &Path) -> Result<CommandPrefixConfig> {
-    load_prefix_config_with_defaults(path, discover_prefix_config()?)
-}
+// --- Prefix config file I/O ---
 
 fn load_prefix_config_with_defaults(
     path: &Path,
@@ -276,6 +340,8 @@ fn save_prefix_config(path: &Path, config: &CommandPrefixConfig) -> Result<()> {
     fs::write(path, contents).with_context(|| format!("writing prefix config {}", path.display()))
 }
 
+// --- Prefix config discovery ---
+
 fn discover_prefix_config() -> Result<CommandPrefixConfig> {
     let mut config = CommandPrefixConfig {
         learn_on_successful_fallback: true,
@@ -309,8 +375,8 @@ fn discover_prefix_config() -> Result<CommandPrefixConfig> {
     Ok(config)
 }
 
-fn discover_shell_command_expansions() -> Result<std::collections::BTreeMap<String, Vec<String>>> {
-    let mut aliases = std::collections::BTreeMap::new();
+fn discover_shell_command_expansions() -> Result<BTreeMap<String, Vec<String>>> {
+    let mut aliases = BTreeMap::new();
 
     if let Some(home) = std::env::var_os("HOME") {
         let home = PathBuf::from(home);
@@ -326,7 +392,7 @@ fn discover_shell_command_expansions() -> Result<std::collections::BTreeMap<Stri
 }
 
 fn merge_alias_file(
-    aliases: &mut std::collections::BTreeMap<String, Vec<String>>,
+    aliases: &mut BTreeMap<String, Vec<String>>,
     path: &Path,
     parser: AliasParser,
 ) -> Result<()> {
@@ -596,44 +662,38 @@ mod tests {
         }
     }
 
+    /// In-memory PrefixConfigStore — no filesystem required.
+    struct FakePrefixConfigStore {
+        config: RefCell<CommandPrefixConfig>,
+        saved: RefCell<Vec<CommandPrefixConfig>>,
+    }
+
+    impl FakePrefixConfigStore {
+        fn new(config: CommandPrefixConfig) -> Self {
+            Self {
+                config: RefCell::new(config),
+                saved: RefCell::new(Vec::new()),
+            }
+        }
+    }
+
+    impl PrefixConfigStore for FakePrefixConfigStore {
+        fn load(&self) -> Result<CommandPrefixConfig> {
+            Ok(self.config.borrow().clone())
+        }
+
+        fn save(&self, config: &CommandPrefixConfig) -> Result<()> {
+            *self.config.borrow_mut() = config.clone();
+            self.saved.borrow_mut().push(config.clone());
+            Ok(())
+        }
+    }
+
     #[cfg(unix)]
     fn exit_status(code: i32) -> ExitStatus {
         use std::os::unix::process::ExitStatusExt;
 
         ExitStatus::from_raw(code << 8)
-    }
-
-    fn execute_plan_for_test(
-        runner: &FakeRunner,
-        plan: &ExecutionPlan,
-        prefix_config_path: &Path,
-    ) -> Result<ExitStatus> {
-        let mut prefix_config =
-            load_prefix_config_with_defaults(prefix_config_path, CommandPrefixConfig::default())?;
-
-        if let Some(prefix) = prefix_config.mappings.get(&plan.program) {
-            let prefixed = apply_command_prefix(plan, prefix)?;
-            return runner.run(&prefixed);
-        }
-
-        let base_result = runner.run(plan);
-        if !should_try_candidate_prefixes(&base_result, &prefix_config) {
-            return base_result;
-        }
-
-        for candidate in &prefix_config.candidate_prefixes {
-            let prefixed = apply_command_prefix(plan, candidate)?;
-            let candidate_result = runner.run(&prefixed);
-            if matches!(candidate_result, Ok(status) if status.success()) {
-                prefix_config
-                    .mappings
-                    .insert(plan.program.clone(), candidate.clone());
-                save_prefix_config(prefix_config_path, &prefix_config)?;
-                return candidate_result;
-            }
-        }
-
-        base_result
     }
 
     #[test]
@@ -674,33 +734,28 @@ mod tests {
 
     #[test]
     fn execute_plan_uses_learned_mapping_without_retry() -> Result<()> {
-        let temp = tempdir()?;
-        let prefix_config_path = temp.path().join("prefixes.toml");
-        save_prefix_config(
-            &prefix_config_path,
-            &CommandPrefixConfig {
-                mappings: BTreeMap::from([(
-                    "gh".to_string(),
-                    vec![
-                        "op".to_string(),
-                        "plugin".to_string(),
-                        "run".to_string(),
-                        "--".to_string(),
-                    ],
-                )]),
-                candidate_prefixes: Vec::new(),
-                learn_on_successful_fallback: false,
-            },
-        )?;
+        let store = FakePrefixConfigStore::new(CommandPrefixConfig {
+            mappings: BTreeMap::from([(
+                "gh".to_string(),
+                vec![
+                    "op".to_string(),
+                    "plugin".to_string(),
+                    "run".to_string(),
+                    "--".to_string(),
+                ],
+            )]),
+            candidate_prefixes: Vec::new(),
+            learn_on_successful_fallback: false,
+        });
 
         let runner = FakeRunner::new([Ok(exit_status(0))]);
-        let status = execute_plan_for_test(
+        let status = execute_plan(
             &runner,
             &ExecutionPlan {
                 program: "gh".to_string(),
                 args: vec!["auth".to_string(), "status".to_string()],
             },
-            &prefix_config_path,
+            &store,
         )?;
 
         assert!(status.success());
@@ -722,39 +777,34 @@ mod tests {
 
     #[test]
     fn execute_plan_learns_successful_candidate_prefix() -> Result<()> {
-        let temp = tempdir()?;
-        let prefix_config_path = temp.path().join("prefixes.toml");
-        save_prefix_config(
-            &prefix_config_path,
-            &CommandPrefixConfig {
-                mappings: BTreeMap::new(),
-                candidate_prefixes: vec![vec![
-                    "op".to_string(),
-                    "plugin".to_string(),
-                    "run".to_string(),
-                    "--".to_string(),
-                ]],
-                learn_on_successful_fallback: true,
-            },
-        )?;
+        let store = FakePrefixConfigStore::new(CommandPrefixConfig {
+            mappings: BTreeMap::new(),
+            candidate_prefixes: vec![vec![
+                "op".to_string(),
+                "plugin".to_string(),
+                "run".to_string(),
+                "--".to_string(),
+            ]],
+            learn_on_successful_fallback: true,
+        });
 
         let runner = FakeRunner::new([Ok(exit_status(1)), Ok(exit_status(0))]);
-        let status = execute_plan_for_test(
+        let status = execute_plan(
             &runner,
             &ExecutionPlan {
                 program: "gh".to_string(),
                 args: vec!["issue".to_string(), "list".to_string()],
             },
-            &prefix_config_path,
+            &store,
         )?;
 
         assert!(status.success());
         assert_eq!(runner.seen.borrow().len(), 2);
 
-        let config =
-            load_prefix_config_with_defaults(&prefix_config_path, CommandPrefixConfig::default())?;
+        let saved = store.saved.borrow();
+        assert_eq!(saved.len(), 1);
         assert_eq!(
-            config.mappings.get("gh"),
+            saved[0].mappings.get("gh"),
             Some(&vec![
                 "op".to_string(),
                 "plugin".to_string(),
@@ -767,38 +817,30 @@ mod tests {
 
     #[test]
     fn execute_plan_skips_learning_when_base_command_succeeds() -> Result<()> {
-        let temp = tempdir()?;
-        let prefix_config_path = temp.path().join("prefixes.toml");
-        save_prefix_config(
-            &prefix_config_path,
-            &CommandPrefixConfig {
-                mappings: BTreeMap::new(),
-                candidate_prefixes: vec![vec![
-                    "op".to_string(),
-                    "plugin".to_string(),
-                    "run".to_string(),
-                    "--".to_string(),
-                ]],
-                learn_on_successful_fallback: true,
-            },
-        )?;
+        let store = FakePrefixConfigStore::new(CommandPrefixConfig {
+            mappings: BTreeMap::new(),
+            candidate_prefixes: vec![vec![
+                "op".to_string(),
+                "plugin".to_string(),
+                "run".to_string(),
+                "--".to_string(),
+            ]],
+            learn_on_successful_fallback: true,
+        });
 
         let runner = FakeRunner::new([Ok(exit_status(0))]);
-        let status = execute_plan_for_test(
+        let status = execute_plan(
             &runner,
             &ExecutionPlan {
                 program: "gh".to_string(),
                 args: vec!["repo".to_string(), "view".to_string()],
             },
-            &prefix_config_path,
+            &store,
         )?;
 
         assert!(status.success());
         assert_eq!(runner.seen.borrow().len(), 1);
-
-        let config =
-            load_prefix_config_with_defaults(&prefix_config_path, CommandPrefixConfig::default())?;
-        assert!(config.mappings.is_empty());
+        assert!(store.saved.borrow().is_empty());
         Ok(())
     }
 
@@ -925,5 +967,40 @@ mod tests {
                 ]
             ))
         );
+    }
+
+    // --- Prefix config file round-trip (tests the concrete I/O fns) ---
+
+    #[test]
+    fn toml_prefix_config_store_persists_and_reloads_mappings() -> Result<()> {
+        let temp = tempdir()?;
+        let path = temp.path().join("prefixes.toml");
+
+        let config = CommandPrefixConfig {
+            mappings: BTreeMap::from([(
+                "gh".to_string(),
+                vec![
+                    "op".to_string(),
+                    "plugin".to_string(),
+                    "run".to_string(),
+                    "--".to_string(),
+                ],
+            )]),
+            candidate_prefixes: vec![vec![
+                "op".to_string(),
+                "plugin".to_string(),
+                "run".to_string(),
+                "--".to_string(),
+            ]],
+            learn_on_successful_fallback: true,
+        };
+
+        // Save then reload without discovery (empty discovered baseline).
+        save_prefix_config(&path, &config)?;
+        let loaded = load_prefix_config_with_defaults(&path, CommandPrefixConfig::default())?;
+
+        assert_eq!(loaded.mappings.get("gh"), config.mappings.get("gh"));
+        assert_eq!(loaded.candidate_prefixes, config.candidate_prefixes);
+        Ok(())
     }
 }

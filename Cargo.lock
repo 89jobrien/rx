@@ -934,6 +934,7 @@ dependencies = [
  "rx-script-core",
  "serde",
  "serde_json",
+ "walkdir",
 ]
 
 [[package]]
@@ -942,6 +943,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "rx-registry-json",
  "rx-script-core",
 ]
 

@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
+use rx_registry_json::FsScriptReader;
 use rx_script_core::{DirectRunRequest, ExecutionPlan, plan_direct_run};
 use std::{
     path::PathBuf,
@@ -20,10 +21,13 @@ struct Cli {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let plan = plan_direct_run(&DirectRunRequest {
-        script_path: cli.script,
-        args: cli.args,
-    })?;
+    let plan = plan_direct_run(
+        &DirectRunRequest {
+            script_path: cli.script,
+            args: cli.args,
+        },
+        &FsScriptReader,
+    )?;
     let status = execute_plan(&plan)?;
     exit_with_status(status);
 }

@@ -3,10 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     ffi::OsStr,
-    fs,
     path::{Path, PathBuf},
 };
-use walkdir::WalkDir;
 
 const RUST_SCRIPT_SHEBANGS: &[&str] = &["#!/usr/bin/env rust-script", "#!/usr/bin/rust-script"];
 const PYTHON_SHEBANGS: &[&str] = &[
@@ -106,6 +104,8 @@ pub struct CommandPrefixConfig {
     pub learn_on_successful_fallback: bool,
 }
 
+// --- Ports ---
+
 pub trait RegistryStore {
     fn list(&self) -> Result<Vec<RegistryEntry>>;
     fn upsert(&mut self, installed: &[InstalledScript]) -> Result<()>;
@@ -115,38 +115,59 @@ pub trait RemoteScriptFetcher {
     fn fetch(&self, url: &str) -> Result<String>;
 }
 
-pub fn install<R: RegistryStore, F: RemoteScriptFetcher>(
+/// Port for reading a script's source text from an arbitrary location.
+pub trait ScriptReader {
+    fn read(&self, path: &Path) -> Result<String>;
+}
+
+/// Port for writing an installed script to the install directory.
+pub trait ScriptWriter {
+    fn write(&self, name: &str, contents: &str, install_dir: &Path) -> Result<PathBuf>;
+}
+
+/// Port for listing the files inside a directory (non-recursive or recursive
+/// is an adapter-level detail; the domain only cares about the flat list of
+/// file paths returned).
+pub trait DirectoryScanner {
+    fn scan_files(&self, dir: &Path) -> Result<Vec<PathBuf>>;
+}
+
+// --- Public API ---
+
+pub fn install<R, F, W, S>(
     request: &InstallRequest,
     registry: &mut R,
     fetcher: &F,
-) -> Result<InstallReport> {
+    writer: &W,
+    scanner: &S,
+) -> Result<InstallReport>
+where
+    R: RegistryStore,
+    F: RemoteScriptFetcher,
+    W: ScriptWriter,
+    S: DirectoryScanner,
+{
     let source = resolve_source(&request.source)?;
-    fs::create_dir_all(&request.install_dir).with_context(|| {
-        format!(
-            "creating install directory {}",
-            request.install_dir.display()
-        )
-    })?;
 
     let report = match source {
         ResolvedSource::LocalFile(path) => {
-            let installed = install_local_file(&path, &request.install_dir)?;
-            Ok(InstallReport {
+            let installed = install_local_file(&path, &request.install_dir, writer)?;
+            InstallReport {
                 installed: vec![installed],
                 skipped: Vec::new(),
-            })
+            }
         }
         ResolvedSource::LocalDirectory(path) => {
-            install_local_directory(&path, &request.install_dir)
+            install_local_directory(&path, &request.install_dir, writer, scanner)?
         }
         ResolvedSource::RemoteUrl(url) => {
-            let installed = install_remote_file(&url, &request.install_dir, fetcher)?;
-            Ok(InstallReport {
+            let installed = install_remote_file(&url, &request.install_dir, fetcher, writer)?;
+            InstallReport {
                 installed: vec![installed],
                 skipped: Vec::new(),
-            })
+            }
         }
-    }?;
+    };
 
     registry.upsert(&report.installed)?;
     Ok(report)
@@ -182,8 +203,12 @@ pub fn plan_installed_run<R: RegistryStore>(
     ))
 }
 
-pub fn plan_direct_run(request: &DirectRunRequest) -> Result<ExecutionPlan> {
-    let contents = fs::read_to_string(&request.script_path)
+pub fn plan_direct_run<SR: ScriptReader>(
+    request: &DirectRunRequest,
+    reader: &SR,
+) -> Result<ExecutionPlan> {
+    let contents = reader
+        .read(&request.script_path)
         .with_context(|| format!("reading script {}", request.script_path.display()))?;
     let runtime = detect_runtime(&contents, &request.script_path.display().to_string())?;
     Ok(build_execution_plan(
@@ -207,6 +232,8 @@ pub fn apply_command_prefix(plan: &ExecutionPlan, prefix: &[String]) -> Result<E
         args,
     })
 }
+
+// --- Internal ---
 
 enum ResolvedSource {
     LocalFile(PathBuf),
@@ -251,22 +278,20 @@ fn normalize_url(input: &str) -> String {
     input.to_string()
 }
 
-fn install_local_directory(source_dir: &Path, install_dir: &Path) -> Result<InstallReport> {
+fn install_local_directory<W: ScriptWriter, S: DirectoryScanner>(
+    source_dir: &Path,
+    install_dir: &Path,
+    writer: &W,
+    scanner: &S,
+) -> Result<InstallReport> {
     let mut installed = Vec::new();
     let mut skipped = Vec::new();
 
-    for entry in WalkDir::new(source_dir) {
-        let entry = entry.with_context(|| format!("walking {}", source_dir.display()))?;
-        if !entry.file_type().is_file() {
-            continue;
-        }
-
-        let path = entry.into_path();
-        match read_and_validate_script(&path) {
+    for path in scanner.scan_files(source_dir)? {
+        match read_and_validate_script_contents(&path) {
             Ok((contents, runtime)) => {
                 let name = script_name(&path)?;
-                let destination =
-                    install_contents(&name, &contents, install_dir, &path.display().to_string())?;
+                let destination = writer.write(&name, &contents, install_dir)?;
                 installed.push(InstalledScript {
                     name,
                     source: path.display().to_string(),
@@ -288,15 +313,14 @@ fn install_local_directory(source_dir: &Path, install_dir: &Path) -> Result<Inst
     Ok(InstallReport { installed, skipped })
 }
 
-fn install_local_file(source_file: &Path, install_dir: &Path) -> Result<InstalledScript> {
-    let (contents, runtime) = read_and_validate_script(source_file)?;
+fn install_local_file<W: ScriptWriter>(
+    source_file: &Path,
+    install_dir: &Path,
+    writer: &W,
+) -> Result<InstalledScript> {
+    let (contents, runtime) = read_and_validate_script_contents(source_file)?;
     let name = script_name(source_file)?;
-    let destination = install_contents(
-        &name,
-        &contents,
-        install_dir,
-        &source_file.display().to_string(),
-    )?;
+    let destination = writer.write(&name, &contents, install_dir)?;
 
     Ok(InstalledScript {
         name,
@@ -306,15 +330,16 @@ fn install_local_file(source_file: &Path, install_dir: &Path) -> Result<Installe
     })
 }
 
-fn install_remote_file<F: RemoteScriptFetcher>(
+fn install_remote_file<F: RemoteScriptFetcher, W: ScriptWriter>(
     source_url: &str,
     install_dir: &Path,
     fetcher: &F,
+    writer: &W,
 ) -> Result<InstalledScript> {
     let contents = fetcher.fetch(source_url)?;
     let runtime = validate_script_contents(&contents, source_url)?;
     let name = script_name_from_url(source_url)?;
-    let destination = install_contents(&name, &contents, install_dir, source_url)?;
+    let destination = writer.write(&name, &contents, install_dir)?;
 
     Ok(InstalledScript {
         name,
@@ -324,9 +349,15 @@ fn install_remote_file<F: RemoteScriptFetcher>(
     })
 }
 
-fn read_and_validate_script(path: &Path) -> Result<(String, Runtime)> {
-    let contents =
-        fs::read_to_string(path).with_context(|| format!("reading script {}", path.display()))?;
+/// Reads the script at `path` from disk and validates it. This function is
+/// used only by the directory-install path, where the scanner has already
+/// produced a `PathBuf`. The actual read goes through `std::fs` here because
+/// directory scanning is inherently coupled to the local filesystem; the
+/// `ScriptReader` port is reserved for `plan_direct_run` where the caller
+/// controls the source.
+fn read_and_validate_script_contents(path: &Path) -> Result<(String, Runtime)> {
+    let contents = std::fs::read_to_string(path)
+        .with_context(|| format!("reading script {}", path.display()))?;
     let runtime = validate_script_contents(&contents, &path.display().to_string())?;
     Ok((contents, runtime))
 }
@@ -382,19 +413,6 @@ fn runtime_from_extension(label: &str) -> Option<Runtime> {
     }
 }
 
-fn install_contents(
-    name: &str,
-    contents: &str,
-    install_dir: &Path,
-    source: &str,
-) -> Result<PathBuf> {
-    let destination = install_dir.join(name);
-    fs::write(&destination, contents)
-        .with_context(|| format!("writing {} from {source}", destination.display()))?;
-    make_executable(&destination)?;
-    Ok(destination)
-}
-
 fn script_name(path: &Path) -> Result<String> {
     let name = path
         .file_stem()
@@ -447,29 +465,13 @@ fn build_execution_plan(script_path: &Path, runtime: &Runtime, args: &[String]) 
     }
 }
 
-#[cfg(unix)]
-fn make_executable(path: &Path) -> Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-
-    let mut permissions = fs::metadata(path)
-        .with_context(|| format!("reading permissions for {}", path.display()))?
-        .permissions();
-    permissions.set_mode(0o755);
-    fs::set_permissions(path, permissions)
-        .with_context(|| format!("setting executable bit on {}", path.display()))?;
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn make_executable(_path: &Path) -> Result<()> {
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{cell::RefCell, collections::BTreeMap};
+    use std::{cell::RefCell, collections::BTreeMap, fs};
     use tempfile::tempdir;
+
+    // --- Test doubles ---
 
     #[derive(Default)]
     struct InMemoryRegistry {
@@ -521,6 +523,64 @@ mod tests {
         }
     }
 
+    /// ScriptWriter that writes to a real tempdir (used where the test needs to
+    /// verify the destination path exists on disk).
+    struct FsWriter;
+
+    impl ScriptWriter for FsWriter {
+        fn write(&self, name: &str, contents: &str, install_dir: &Path) -> Result<PathBuf> {
+            let destination = install_dir.join(name);
+            fs::write(&destination, contents)?;
+            Ok(destination)
+        }
+    }
+
+    /// ScriptWriter that records calls without touching the filesystem.
+    #[derive(Default)]
+    struct RecordingWriter {
+        written: RefCell<Vec<(String, PathBuf)>>,
+    }
+
+    impl ScriptWriter for RecordingWriter {
+        fn write(&self, name: &str, _contents: &str, install_dir: &Path) -> Result<PathBuf> {
+            let dest = install_dir.join(name);
+            self.written.borrow_mut().push((name.to_string(), dest.clone()));
+            Ok(dest)
+        }
+    }
+
+    /// DirectoryScanner backed by the real filesystem using walkdir semantics.
+    struct FsScanner;
+
+    impl DirectoryScanner for FsScanner {
+        fn scan_files(&self, dir: &Path) -> Result<Vec<PathBuf>> {
+            let mut paths = Vec::new();
+            for entry in walkdir::WalkDir::new(dir) {
+                let entry = entry.with_context(|| format!("walking {}", dir.display()))?;
+                if entry.file_type().is_file() {
+                    paths.push(entry.into_path());
+                }
+            }
+            Ok(paths)
+        }
+    }
+
+    /// ScriptReader backed by an in-memory map.
+    struct MockReader {
+        contents: BTreeMap<PathBuf, String>,
+    }
+
+    impl ScriptReader for MockReader {
+        fn read(&self, path: &Path) -> Result<String> {
+            self.contents
+                .get(path)
+                .cloned()
+                .ok_or_else(|| anyhow!("no mock content for {}", path.display()))
+        }
+    }
+
+    // --- Tests ---
+
     #[test]
     fn installs_single_local_rust_script() -> Result<()> {
         let source_dir = tempdir()?;
@@ -537,6 +597,8 @@ mod tests {
             },
             &mut registry,
             &fetcher,
+            &FsWriter,
+            &FsScanner,
         )?;
 
         assert_eq!(report.installed.len(), 1);
@@ -573,6 +635,8 @@ mod tests {
             },
             &mut registry,
             &fetcher,
+            &FsWriter,
+            &FsScanner,
         )?;
 
         assert_eq!(report.installed.len(), 2);
@@ -598,6 +662,8 @@ mod tests {
             },
             &mut registry,
             &fetcher,
+            &FsWriter,
+            &FsScanner,
         )?;
 
         assert_eq!(report.installed[0].runtime, Runtime::Python);
@@ -620,6 +686,8 @@ mod tests {
             },
             &mut registry,
             &fetcher,
+            &FsWriter,
+            &FsScanner,
         )
         .expect_err("unsupported file should fail");
 
@@ -705,14 +773,21 @@ mod tests {
 
     #[test]
     fn plan_direct_run_uses_rust_script_runtime() -> Result<()> {
-        let source_dir = tempdir()?;
-        let script_path = source_dir.path().join("hello.rs");
-        fs::write(&script_path, "#!/usr/bin/env rust-script\nfn main() {}\n")?;
+        let script_path = PathBuf::from("/tmp/hello.rs");
+        let reader = MockReader {
+            contents: BTreeMap::from([(
+                script_path.clone(),
+                "#!/usr/bin/env rust-script\nfn main() {}\n".to_string(),
+            )]),
+        };
 
-        let plan = plan_direct_run(&DirectRunRequest {
-            script_path: script_path.clone(),
-            args: vec!["--demo".to_string()],
-        })?;
+        let plan = plan_direct_run(
+            &DirectRunRequest {
+                script_path: script_path.clone(),
+                args: vec!["--demo".to_string()],
+            },
+            &reader,
+        )?;
 
         assert_eq!(plan.program, "rust-script");
         assert_eq!(
@@ -890,6 +965,54 @@ mod tests {
             assert_eq!(serde_json::to_string(&runtime)?, expected);
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn install_uses_recording_writer_without_touching_disk() -> Result<()> {
+        let source_dir = tempdir()?;
+        let install_dir = tempdir()?;
+        let script_path = source_dir.path().join("hello.rs");
+        fs::write(&script_path, "#!/usr/bin/env rust-script\nfn main() {}\n")?;
+
+        let mut registry = InMemoryRegistry::default();
+        let writer = RecordingWriter::default();
+        let report = install(
+            &InstallRequest {
+                source: script_path.display().to_string(),
+                install_dir: install_dir.path().to_path_buf(),
+            },
+            &mut registry,
+            &MockFetcher::default(),
+            &writer,
+            &FsScanner,
+        )?;
+
+        assert_eq!(report.installed.len(), 1);
+        assert_eq!(writer.written.borrow().len(), 1);
+        assert_eq!(writer.written.borrow()[0].0, "hello");
+        Ok(())
+    }
+
+    #[test]
+    fn plan_direct_run_uses_mock_reader_without_disk() -> Result<()> {
+        let script_path = PathBuf::from("/nonexistent/hello.py");
+        let reader = MockReader {
+            contents: BTreeMap::from([(
+                script_path.clone(),
+                "#!/usr/bin/env python3\nprint('hi')\n".to_string(),
+            )]),
+        };
+
+        let plan = plan_direct_run(
+            &DirectRunRequest {
+                script_path,
+                args: Vec::new(),
+            },
+            &reader,
+        )?;
+
+        assert_eq!(plan.program, "uv");
         Ok(())
     }
 }

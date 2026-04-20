@@ -10,9 +10,9 @@ description = "Core runtime detection and execution planning for rx"
 [dependencies]
 anyhow = "1.0.100"
 serde = { version = "1.0.228", features = ["derive"] }
-walkdir = "2.5.0"
 
 [dev-dependencies]
 tempfile = "3.23.0"
 serde_json = "1.0.145"
+walkdir = "2.5.0"
 
