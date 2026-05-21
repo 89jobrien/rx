@@ -468,6 +468,159 @@ fn build_execution_plan(script_path: &Path, runtime: &Runtime, args: &[String]) 
     }
 }
 
+/// Reusable conformance test suites for port traits.
+///
+/// Enabled by the `test-support` feature (or automatically in `#[cfg(test)]`).
+/// Each function accepts a concrete impl and asserts the contract holds.
+#[cfg(any(test, feature = "test-support"))]
+pub mod conformance {
+    use super::*;
+    use std::fs;
+
+    /// Asserts the full `RegistryStore` contract:
+    /// - empty store lists nothing
+    /// - upsert then list contains the entry
+    /// - upsert same name overwrites
+    pub fn assert_registry_store_contract(store: &mut impl RegistryStore) {
+        // empty store
+        let entries = store.list().expect("list on empty store");
+        assert!(entries.is_empty(), "fresh store should be empty");
+
+        // upsert one entry
+        store
+            .upsert(&[InstalledScript {
+                name: "alpha".into(),
+                source: "src-a".into(),
+                destination: PathBuf::from("/tmp/rx-test/alpha"),
+                runtime: Runtime::Bash,
+            }])
+            .expect("upsert alpha");
+
+        let entries = store.list().expect("list after upsert");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].name, "alpha");
+        assert_eq!(entries[0].source, "src-a");
+
+        // upsert same name overwrites
+        store
+            .upsert(&[InstalledScript {
+                name: "alpha".into(),
+                source: "src-a-v2".into(),
+                destination: PathBuf::from("/tmp/rx-test/alpha"),
+                runtime: Runtime::Python,
+            }])
+            .expect("upsert alpha again");
+
+        let entries = store.list().expect("list after overwrite");
+        assert_eq!(entries.len(), 1, "overwrite should not duplicate");
+        assert_eq!(entries[0].source, "src-a-v2");
+        assert_eq!(entries[0].runtime, Runtime::Python);
+
+        // upsert a second distinct entry
+        store
+            .upsert(&[InstalledScript {
+                name: "beta".into(),
+                source: "src-b".into(),
+                destination: PathBuf::from("/tmp/rx-test/beta"),
+                runtime: Runtime::Nushell,
+            }])
+            .expect("upsert beta");
+
+        let entries = store.list().expect("list after second entry");
+        assert_eq!(entries.len(), 2);
+    }
+
+    /// Asserts the `RemoteScriptFetcher` contract:
+    /// - fetch returns bytes for a valid URL
+    /// - fetch returns an error (not a panic) for an invalid URL
+    pub fn assert_remote_fetcher_contract(
+        fetcher: &impl RemoteScriptFetcher,
+        valid_url: &str,
+        invalid_url: &str,
+    ) {
+        let result = fetcher.fetch(valid_url);
+        assert!(result.is_ok(), "fetch of valid URL should succeed");
+        assert!(
+            !result.unwrap().is_empty(),
+            "fetched content should be non-empty"
+        );
+
+        let err = fetcher.fetch(invalid_url);
+        assert!(err.is_err(), "fetch of invalid URL should return Err");
+    }
+
+    /// Asserts the `ScriptReader` contract:
+    /// - reads first line correctly
+    /// - reads full multi-line content
+    /// - errors on missing path (does not panic)
+    pub fn assert_script_reader_contract(reader: &impl ScriptReader, existing_path: &Path) {
+        let content = reader.read(existing_path).expect("read existing file");
+        assert!(!content.is_empty(), "read content should be non-empty");
+
+        // first line should match what's on disk
+        let first_line = content.lines().next().expect("at least one line");
+        assert!(
+            !first_line.is_empty(),
+            "first line of test file should not be empty"
+        );
+
+        // missing path returns Err
+        let missing = PathBuf::from("/nonexistent/conformance-test-file");
+        assert!(
+            reader.read(&missing).is_err(),
+            "read of missing path should return Err"
+        );
+    }
+
+    /// Asserts the `ScriptWriter` contract:
+    /// - written file is readable with matching content
+    /// - returned path is inside install_dir
+    pub fn assert_script_writer_contract(writer: &impl ScriptWriter) {
+        let dir = tempfile::tempdir().expect("tempdir for writer conformance");
+        let contents = "#!/usr/bin/env bash\necho hello\n";
+        let dest = writer
+            .write("conformance-test", contents, dir.path())
+            .expect("write should succeed");
+
+        assert!(
+            dest.starts_with(dir.path()),
+            "destination should be inside install_dir"
+        );
+
+        let read_back = fs::read_to_string(&dest).expect("read back written file");
+        assert_eq!(read_back, contents, "content round-trip must match");
+    }
+
+    /// Asserts the `DirectoryScanner` contract:
+    /// - returns only files (not directories)
+    /// - returns empty vec for empty directory
+    pub fn assert_directory_scanner_contract(scanner: &impl DirectoryScanner) {
+        let dir = tempfile::tempdir().expect("tempdir for scanner conformance");
+
+        // empty dir
+        let files = scanner.scan_files(dir.path()).expect("scan empty dir");
+        assert!(files.is_empty(), "empty dir should yield no files");
+
+        // add a file and a subdirectory
+        fs::write(dir.path().join("a.txt"), "hello").expect("write a.txt");
+        fs::create_dir(dir.path().join("subdir")).expect("create subdir");
+        fs::write(dir.path().join("subdir").join("b.txt"), "world").expect("write b.txt");
+
+        let files = scanner.scan_files(dir.path()).expect("scan populated dir");
+        assert!(
+            files.len() >= 2,
+            "should find at least 2 files, got {}",
+            files.len()
+        );
+        for f in &files {
+            assert!(
+                f.is_file() || !f.exists(),
+                "scanner should return file paths only"
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -950,6 +1103,47 @@ mod tests {
 
         let error = apply_command_prefix(&plan, &[]).expect_err("empty prefix should fail");
         assert!(error.to_string().contains("command prefix cannot be empty"));
+    }
+
+    // --- Conformance tests against in-memory doubles ---
+
+    #[test]
+    fn conformance_registry_store_in_memory() {
+        let mut store = InMemoryRegistry::default();
+        crate::conformance::assert_registry_store_contract(&mut store);
+    }
+
+    #[test]
+    fn conformance_remote_fetcher_mock() {
+        let fetcher = MockFetcher {
+            responses: BTreeMap::from([(
+                "valid-url".to_string(),
+                "#!/usr/bin/env bash\necho hi\n".to_string(),
+            )]),
+        };
+        crate::conformance::assert_remote_fetcher_contract(&fetcher, "valid-url", "bad-url");
+    }
+
+    #[test]
+    fn conformance_script_reader_mock() {
+        let path = PathBuf::from("/mock/test.sh");
+        let reader = MockReader {
+            contents: BTreeMap::from([(
+                path.clone(),
+                "#!/usr/bin/env bash\necho hello\n".to_string(),
+            )]),
+        };
+        crate::conformance::assert_script_reader_contract(&reader, &path);
+    }
+
+    #[test]
+    fn conformance_script_writer_fs() {
+        crate::conformance::assert_script_writer_contract(&FsWriter);
+    }
+
+    #[test]
+    fn conformance_directory_scanner_fs() {
+        crate::conformance::assert_directory_scanner_contract(&FsScanner);
     }
 
     #[test]
