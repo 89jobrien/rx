@@ -28,23 +28,34 @@ Use the workspace root for all commands.
 
 Four crates live under `crates/`:
 
-- `rx-core` -- domain logic for source resolution, shebang/runtime detection, install rules, and
-  execution planning.
-- `rx-registry-json` -- JSON registry persistence plus HTTP fetching adapters and XDG default path
-  resolution.
-- `rx-install` -- the `rx` CLI for install, list, and run.
+- `rx-core` -- unified domain crate with two modules:
+  - `rx_core::script` -- source resolution, shebang/runtime detection, install rules, and
+    execution planning. Types are re-exported at the crate root for convenience.
+  - `rx_core::repo` -- multi-repo manifest (`repos.toml`), directory-scan discovery, and
+    tag/role/language filtering for `rx status`, `rx graph`, and `rx fan`.
+- `rx-registry-json` -- JSON registry persistence plus HTTP fetching adapters and XDG default
+  path resolution.
+- `rx-install` -- the `rx` CLI binary. Subcommands: `install`, `list`, `run`, `status` (stub),
+  `graph` (stub), `fan` (stub). Also handles external command prefix learning.
 - `rxx` -- direct-run CLI for executing one compatible script without installing it.
+
+A standalone `fuzz/` directory contains `cargo-fuzz` targets (not a workspace member).
 
 ## Architecture
 
-`rx-core` owns the behavior and exposes the main seams:
+`rx-core` owns all domain behavior and exposes the main seams:
 
 - `RegistryStore` -- persistence port for listing and upserting installed scripts
 - `RemoteScriptFetcher` -- remote fetch port used for URL installs
+- `ScriptReader`, `ScriptWriter`, `DirectoryScanner` -- filesystem ports
+- `RepoSource` -- port for repo metadata (manifest-backed or scan-backed)
 - `ExecutionPlan` -- normalized launch plan used by both `rx` and `rxx`
 
-Keep runtime rules, naming rules, and install semantics in `rx-core`. CLI crates should stay thin
-and mostly parse args, call planning/install functions, and execute the returned plan.
+Conformance test suites live behind the `test-support` feature in `rx-core` and verify any
+trait implementation satisfies the port contract.
+
+Keep runtime rules, naming rules, and install semantics in `rx-core`. CLI crates should stay
+thin and mostly parse args, call planning/install functions, and execute the returned plan.
 
 ## Key Invariants
 
