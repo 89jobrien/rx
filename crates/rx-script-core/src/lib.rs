@@ -544,7 +544,9 @@ mod tests {
     impl ScriptWriter for RecordingWriter {
         fn write(&self, name: &str, _contents: &str, install_dir: &Path) -> Result<PathBuf> {
             let dest = install_dir.join(name);
-            self.written.borrow_mut().push((name.to_string(), dest.clone()));
+            self.written
+                .borrow_mut()
+                .push((name.to_string(), dest.clone()));
             Ok(dest)
         }
     }
@@ -1014,5 +1016,160 @@ mod tests {
 
         assert_eq!(plan.program, "uv");
         Ok(())
+    }
+
+    // --- Property tests ---
+
+    mod proptests {
+        use super::*;
+        use proptest::prelude::*;
+
+        /// All recognized shebangs paired with their expected runtime.
+        fn all_known_shebangs() -> Vec<(&'static str, Runtime)> {
+            let mut out = Vec::new();
+            for s in RUST_SCRIPT_SHEBANGS {
+                out.push((*s, Runtime::RustScript));
+            }
+            for s in PYTHON_SHEBANGS {
+                out.push((*s, Runtime::Python));
+            }
+            for s in BASH_SHEBANGS {
+                out.push((*s, Runtime::Bash));
+            }
+            for s in ZSH_SHEBANGS {
+                out.push((*s, Runtime::Zsh));
+            }
+            for s in FISH_SHEBANGS {
+                out.push((*s, Runtime::Fish));
+            }
+            for s in NUSHELL_SHEBANGS {
+                out.push((*s, Runtime::Nushell));
+            }
+            for s in RUBY_SHEBANGS {
+                out.push((*s, Runtime::Ruby));
+            }
+            // JS/TS shebangs default to JavaScript when label has no .ts extension
+            for s in JS_TS_SHEBANGS {
+                out.push((*s, Runtime::JavaScript));
+            }
+            out
+        }
+
+        /// Strategy that picks a known shebang and appends arbitrary body lines.
+        fn known_shebang_script() -> impl Strategy<Value = (String, Runtime)> {
+            let shebangs = all_known_shebangs();
+            let len = shebangs.len();
+            (0..len, ".*").prop_map(move |(idx, body)| {
+                let (shebang, ref runtime) = shebangs[idx];
+                let script = format!("{shebang}\n{body}\n");
+                (script, runtime.clone())
+            })
+        }
+
+        proptest! {
+            // -- Shebang / runtime detection --
+
+            #[test]
+            fn known_shebang_always_detects_correct_runtime(
+                (script, expected) in known_shebang_script()
+            ) {
+                let result = detect_runtime(&script, "test.sh").unwrap();
+                prop_assert_eq!(result, expected);
+            }
+
+            #[test]
+            fn unrecognized_shebang_is_always_rejected(
+                body in "[a-zA-Z0-9 _/]{1,80}"
+            ) {
+                // Construct a line that does NOT match any known shebang.
+                let fake_shebang = format!("#!/usr/bin/env unknown_{body}");
+                let script = format!("{fake_shebang}\nsome body\n");
+                prop_assert!(detect_runtime(&script, "test.txt").is_err());
+            }
+
+            #[test]
+            fn empty_content_is_rejected(extra_newlines in "\\n{0,5}") {
+                // Empty or whitespace-only scripts should fail.
+                prop_assert!(detect_runtime(&extra_newlines, "empty.sh").is_err());
+            }
+
+            // -- GitHub URL normalization --
+
+            #[test]
+            fn normalized_url_never_contains_blob(
+                owner in "[a-zA-Z0-9_-]{1,20}",
+                repo in "[a-zA-Z0-9_-]{1,20}",
+                branch in "[a-zA-Z0-9._-]{1,20}",
+                path in "[a-zA-Z0-9_/-]{1,40}\\.[a-z]{1,4}"
+            ) {
+                let input = format!(
+                    "https://github.com/{owner}/{repo}/blob/{branch}/{path}"
+                );
+                let output = normalize_url(&input);
+                prop_assert!(
+                    !output.contains("/blob/"),
+                    "normalized URL still contains /blob/: {output}"
+                );
+                prop_assert!(output.starts_with("https://raw.githubusercontent.com/"));
+            }
+
+            #[test]
+            fn non_github_urls_pass_through_unchanged(
+                domain in "[a-z]{3,10}\\.[a-z]{2,4}",
+                path in "[a-zA-Z0-9/._-]{1,40}"
+            ) {
+                let input = format!("https://{domain}/{path}");
+                // Skip if domain happens to be github.com
+                prop_assume!(!domain.contains("github.com"));
+                let output = normalize_url(&input);
+                prop_assert_eq!(output, input);
+            }
+
+            // -- Filename-to-command-name derivation --
+
+            #[test]
+            fn script_name_never_contains_separator_or_extension(
+                stem in "[a-zA-Z][a-zA-Z0-9_-]{0,20}",
+                ext in "(rs|py|sh|js|ts|nu|rb|fish|zsh)"
+            ) {
+                let path = PathBuf::from(format!("/some/dir/{stem}.{ext}"));
+                let name = script_name(&path).unwrap();
+                prop_assert!(!name.contains('/'), "name contains /: {name}");
+                prop_assert!(!name.contains('\\'), "name contains \\: {name}");
+                prop_assert!(!name.contains('.'), "name contains .: {name}");
+            }
+
+            #[test]
+            fn same_stem_produces_same_name(
+                stem in "[a-zA-Z][a-zA-Z0-9_-]{0,20}",
+                ext1 in "(rs|py|sh)",
+                ext2 in "(js|ts|nu)"
+            ) {
+                let p1 = PathBuf::from(format!("/a/{stem}.{ext1}"));
+                let p2 = PathBuf::from(format!("/b/{stem}.{ext2}"));
+                let n1 = script_name(&p1).unwrap();
+                let n2 = script_name(&p2).unwrap();
+                prop_assert_eq!(n1, n2);
+            }
+
+            #[test]
+            fn url_name_never_contains_separator_or_extension(
+                stem in "[a-zA-Z][a-zA-Z0-9_-]{0,20}",
+                ext in "(rs|py|sh|js|ts|nu|rb)"
+            ) {
+                let url = format!("https://example.com/scripts/{stem}.{ext}");
+                let name = script_name_from_url(&url).unwrap();
+                prop_assert!(!name.contains('/'), "name contains /: {name}");
+                prop_assert!(!name.contains('.'), "name contains .: {name}");
+            }
+
+            #[test]
+            fn url_name_rejects_trailing_slash(
+                domain in "[a-z]{3,10}\\.[a-z]{2,4}"
+            ) {
+                let url = format!("https://{domain}/");
+                prop_assert!(script_name_from_url(&url).is_err());
+            }
+        }
     }
 }
