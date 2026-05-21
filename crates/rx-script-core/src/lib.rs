@@ -544,7 +544,9 @@ mod tests {
     impl ScriptWriter for RecordingWriter {
         fn write(&self, name: &str, _contents: &str, install_dir: &Path) -> Result<PathBuf> {
             let dest = install_dir.join(name);
-            self.written.borrow_mut().push((name.to_string(), dest.clone()));
+            self.written
+                .borrow_mut()
+                .push((name.to_string(), dest.clone()));
             Ok(dest)
         }
     }

@@ -16,6 +16,7 @@ shell-words = "1.1.0"
 toml = "0.9.8"
 
 [dev-dependencies]
+assert_cmd = "2.0.16"
 tempfile = "3.23.0"
 
 [[bin]]
