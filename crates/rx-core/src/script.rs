@@ -369,7 +369,7 @@ fn validate_script_contents(contents: &str, label: &str) -> Result<Runtime> {
     detect_runtime(contents, label)
 }
 
-fn detect_runtime(contents: &str, label: &str) -> Result<Runtime> {
+pub fn detect_runtime(contents: &str, label: &str) -> Result<Runtime> {
     let first_line = contents
         .lines()
         .next()
