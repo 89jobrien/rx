@@ -15,3 +15,7 @@ serde_json = "1.0.145"
 walkdir = "2.5.0"
 rx-script-core = { path = "../rx-script-core", version = "0.1.0" }
 
+[dev-dependencies]
+tempfile = "3.23.0"
+rx-script-core = { path = "../rx-script-core", version = "0.1.0", features = ["test-support"] }
+
