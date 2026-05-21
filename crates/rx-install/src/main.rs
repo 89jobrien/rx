@@ -1,11 +1,13 @@
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use rx_core::{
-    CommandPrefixConfig, ExecutionPlan, InstallRequest, RunRequest, apply_command_prefix,
-    format_registry_entry, install, list_installed, plan_installed_run,
+    CommandPrefixConfig, DirectRunRequest, ExecutionPlan, InstallRequest, RunRequest,
+    apply_command_prefix, format_registry_entry, install, list_installed, plan_direct_run,
+    plan_installed_run,
 };
 use rx_registry_json::{
-    FsScriptWriter, JsonRegistryStore, ReqwestFetcher, WalkdirScanner, default_paths,
+    FsScriptReader, FsScriptWriter, JsonRegistryStore, ReqwestFetcher, WalkdirScanner,
+    default_paths,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -212,6 +214,14 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+// --- rxx entry point (plan_direct_run wired with FsScriptReader) ---
+
+/// Used by the `rxx` binary (which lives in its own crate), exposed here for
+/// symmetry and to demonstrate the FsScriptReader wiring.
+pub fn direct_run_plan(request: &DirectRunRequest) -> Result<ExecutionPlan> {
+    plan_direct_run(request, &FsScriptReader)
 }
 
 // --- Path defaults ---
