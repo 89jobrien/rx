@@ -1,0 +1,21 @@
+[package]
+name = "rx-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+rx-script-core = { path = "../crates/rx-script-core" }
+
+# Prevent this from interfering with workspace builds
+[workspace]
+
+[[bin]]
+name = "fuzz_shebang_parse"
+path = "fuzz_targets/fuzz_shebang_parse.rs"
+test = false
+doc = false

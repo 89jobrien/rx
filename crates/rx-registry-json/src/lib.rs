@@ -153,9 +153,8 @@ pub struct FsScriptWriter;
 
 impl ScriptWriter for FsScriptWriter {
     fn write(&self, name: &str, contents: &str, install_dir: &Path) -> Result<PathBuf> {
-        fs::create_dir_all(install_dir).with_context(|| {
-            format!("creating install directory {}", install_dir.display())
-        })?;
+        fs::create_dir_all(install_dir)
+            .with_context(|| format!("creating install directory {}", install_dir.display()))?;
         let destination = install_dir.join(name);
         fs::write(&destination, contents)
             .with_context(|| format!("writing {}", destination.display()))?;
