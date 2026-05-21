@@ -261,12 +261,15 @@ fn is_url(input: &str) -> bool {
     input.starts_with("https://") || input.starts_with("http://")
 }
 
+/// Minimum path segments in a GitHub blob URL: owner/repo/blob/branch/file.
+const GITHUB_BLOB_MIN_SEGMENTS: usize = 5;
+
 fn normalize_url(input: &str) -> String {
     if let Some((prefix, suffix)) = input.split_once("github.com/")
         && (prefix.ends_with("https://") || prefix.ends_with("http://"))
     {
         let parts: Vec<&str> = suffix.split('/').collect();
-        if parts.len() >= 5 && parts[2] == "blob" {
+        if parts.len() >= GITHUB_BLOB_MIN_SEGMENTS && parts[2] == "blob" {
             let owner = parts[0];
             let repo = parts[1];
             let branch = parts[3];
@@ -544,7 +547,9 @@ mod tests {
     impl ScriptWriter for RecordingWriter {
         fn write(&self, name: &str, _contents: &str, install_dir: &Path) -> Result<PathBuf> {
             let dest = install_dir.join(name);
-            self.written.borrow_mut().push((name.to_string(), dest.clone()));
+            self.written
+                .borrow_mut()
+                .push((name.to_string(), dest.clone()));
             Ok(dest)
         }
     }

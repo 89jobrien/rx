@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
+use rx_core::{DirectRunRequest, ExecutionPlan, plan_direct_run};
 use rx_registry_json::FsScriptReader;
-use rx_script_core::{DirectRunRequest, ExecutionPlan, plan_direct_run};
 use std::{
     path::PathBuf,
     process::{ExitStatus, Stdio, exit},

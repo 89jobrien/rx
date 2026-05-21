@@ -1,12 +1,11 @@
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
-use rx_script_core::{
+use rx_core::{
     CommandPrefixConfig, ExecutionPlan, InstallRequest, RunRequest, apply_command_prefix,
-    format_registry_entry, install, list_installed, plan_direct_run, plan_installed_run,
+    format_registry_entry, install, list_installed, plan_installed_run,
 };
 use rx_registry_json::{
-    FsScriptReader, FsScriptWriter, JsonRegistryStore, ReqwestFetcher, WalkdirScanner,
-    default_paths,
+    FsScriptWriter, JsonRegistryStore, ReqwestFetcher, WalkdirScanner, default_paths,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -126,6 +125,12 @@ enum Command {
         #[arg(allow_hyphen_values = true)]
         args: Vec<String>,
     },
+    /// Show git status across all repos in the manifest
+    Status,
+    /// Show cross-repo Cargo dependency graph
+    Graph,
+    /// Run a command across all repos in the manifest
+    Fan,
     #[command(external_subcommand)]
     External(Vec<String>),
 }
@@ -187,6 +192,18 @@ fn main() -> Result<()> {
             let status = execute_plan(&ProcessRunner, &plan, &prefix_store)?;
             exit_with_status(status);
         }
+        Command::Status => {
+            eprintln!("rx status: not yet implemented");
+            exit(2);
+        }
+        Command::Graph => {
+            eprintln!("rx graph: not yet implemented");
+            exit(2);
+        }
+        Command::Fan => {
+            eprintln!("rx fan: not yet implemented");
+            exit(2);
+        }
         Command::External(args) => {
             let plan = plan_external_command(&args, &shell_aliases)?;
             let status = execute_plan(&ProcessRunner, &plan, &prefix_store)?;
@@ -195,16 +212,6 @@ fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-// --- rxx entry point (plan_direct_run wired with FsScriptReader) ---
-
-/// Used by the `rxx` binary (which lives in its own crate), exposed here for
-/// symmetry and to demonstrate the FsScriptReader wiring.
-pub fn direct_run_plan(
-    request: &rx_script_core::DirectRunRequest,
-) -> Result<ExecutionPlan> {
-    plan_direct_run(request, &FsScriptReader)
 }
 
 // --- Path defaults ---
