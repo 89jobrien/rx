@@ -2,7 +2,9 @@ use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use rx_core::{
     CommandPrefixConfig, DirectRunRequest, ExecutionPlan, InstallRequest, RunRequest,
-    apply_command_prefix, format_registry_entry,
+    apply_command_prefix,
+    fan::{self, FanConfig},
+    format_registry_entry,
     graph::{self, FsCargoScanner, GraphFormat},
     install, list_installed, plan_direct_run, plan_installed_run,
     repo::{self, ManifestRepoSource, RepoSource, ScanRepoSource},
@@ -167,7 +169,35 @@ enum Command {
         format: String,
     },
     /// Run a command across all repos in the manifest
-    Fan,
+    Fan {
+        /// Path to repos.toml manifest
+        #[arg(long, value_name = "FILE", default_value_os_t = default_manifest_path())]
+        manifest: PathBuf,
+        /// Scan a directory for git repos instead of using the manifest
+        #[arg(long, value_name = "DIR")]
+        scan: Option<PathBuf>,
+        /// Filter repos (e.g. tag=rust, role=lib, name~dev*)
+        #[arg(long, short)]
+        filter: Option<String>,
+        /// Number of parallel workers (default: number of CPUs)
+        #[arg(long, short, default_value_t = num_cpus::get())]
+        concurrency: usize,
+        /// Per-repo timeout in seconds
+        #[arg(long, value_name = "SECS")]
+        timeout: Option<u64>,
+        /// Stop on first failure
+        #[arg(long)]
+        fail_fast: bool,
+        /// Print planned invocations without running
+        #[arg(long)]
+        dry_run: bool,
+        /// Output format: grouped (default) or json
+        #[arg(long, default_value = "grouped")]
+        output: String,
+        /// Command to run (everything after --)
+        #[arg(required = true, allow_hyphen_values = true, last = true)]
+        command: Vec<String>,
+    },
     #[command(external_subcommand)]
     External(Vec<String>),
 }
@@ -247,9 +277,28 @@ fn main() -> Result<()> {
         } => {
             run_graph(manifest, scan, filter.as_deref(), who_uses, deps, &format)?;
         }
-        Command::Fan => {
-            eprintln!("rx fan: not yet implemented");
-            exit(2);
+        Command::Fan {
+            manifest,
+            scan,
+            filter,
+            concurrency,
+            timeout,
+            fail_fast,
+            dry_run,
+            output,
+            command,
+        } => {
+            run_fan(
+                manifest,
+                scan,
+                filter.as_deref(),
+                concurrency,
+                timeout,
+                fail_fast,
+                dry_run,
+                &output,
+                command,
+            )?;
         }
         Command::External(args) => {
             let plan = plan_external_command(&args, &shell_aliases)?;
@@ -453,6 +502,60 @@ fn resolve_repos(
     } else {
         Ok(repos)
     }
+}
+
+// --- Fan ---
+
+#[allow(clippy::too_many_arguments)]
+fn run_fan(
+    manifest_path: PathBuf,
+    scan: Option<PathBuf>,
+    filter_expr: Option<&str>,
+    concurrency: usize,
+    timeout: Option<u64>,
+    fail_fast: bool,
+    dry_run: bool,
+    output: &str,
+    command: Vec<String>,
+) -> Result<()> {
+    let repos = resolve_repos(manifest_path, scan, filter_expr)?;
+
+    if repos.is_empty() {
+        eprintln!("no repos found");
+        return Ok(());
+    }
+
+    if dry_run {
+        let cmd_str = command.join(" ");
+        for repo in &repos {
+            println!("[dry-run] {} -> {cmd_str}", repo.name);
+        }
+        println!("\n{} repos would be targeted", repos.len());
+        return Ok(());
+    }
+
+    let config = FanConfig {
+        command: command.clone(),
+        concurrency: concurrency.max(1),
+        timeout: timeout.map(std::time::Duration::from_secs),
+        fail_fast,
+    };
+
+    let report = fan::fan_out(&repos, &config);
+
+    match output {
+        "json" => {
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        }
+        _ => {
+            print!("{}", fan::render_grouped(&report));
+        }
+    }
+
+    if report.failed > 0 {
+        exit(1);
+    }
+    Ok(())
 }
 
 // --- External command planning ---

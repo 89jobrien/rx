@@ -1,3 +1,4 @@
+pub mod fan;
 pub mod graph;
 pub mod repo;
 pub mod script;
