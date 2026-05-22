@@ -1,3 +1,4 @@
+pub mod graph;
 pub mod repo;
 pub mod script;
 pub mod status;

@@ -2,8 +2,9 @@ use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use rx_core::{
     CommandPrefixConfig, DirectRunRequest, ExecutionPlan, InstallRequest, RunRequest,
-    apply_command_prefix, format_registry_entry, install, list_installed, plan_direct_run,
-    plan_installed_run,
+    apply_command_prefix, format_registry_entry,
+    graph::{self, FsCargoScanner, GraphFormat},
+    install, list_installed, plan_direct_run, plan_installed_run,
     repo::{self, ManifestRepoSource, RepoSource, ScanRepoSource},
     status::{self, git_cli::GitCliProbe},
 };
@@ -145,7 +146,26 @@ enum Command {
         json: bool,
     },
     /// Show cross-repo Cargo dependency graph
-    Graph,
+    Graph {
+        /// Path to repos.toml manifest
+        #[arg(long, value_name = "FILE", default_value_os_t = default_manifest_path())]
+        manifest: PathBuf,
+        /// Scan a directory for git repos instead of using the manifest
+        #[arg(long, value_name = "DIR")]
+        scan: Option<PathBuf>,
+        /// Filter repos (e.g. tag=rust, role=lib, name~dev*)
+        #[arg(long, short)]
+        filter: Option<String>,
+        /// Show packages that depend on this package
+        #[arg(long, value_name = "PKG")]
+        who_uses: Option<String>,
+        /// Show transitive dependencies of this package
+        #[arg(long, value_name = "PKG")]
+        deps: Option<String>,
+        /// Output format: tree, json, mermaid
+        #[arg(long, default_value = "tree")]
+        format: String,
+    },
     /// Run a command across all repos in the manifest
     Fan,
     #[command(external_subcommand)]
@@ -217,9 +237,15 @@ fn main() -> Result<()> {
         } => {
             run_status(manifest, scan, filter.as_deref(), json)?;
         }
-        Command::Graph => {
-            eprintln!("rx graph: not yet implemented");
-            exit(2);
+        Command::Graph {
+            manifest,
+            scan,
+            filter,
+            who_uses,
+            deps,
+            format,
+        } => {
+            run_graph(manifest, scan, filter.as_deref(), who_uses, deps, &format)?;
         }
         Command::Fan => {
             eprintln!("rx fan: not yet implemented");
@@ -279,25 +305,7 @@ fn run_status(
     filter_expr: Option<&str>,
     json: bool,
 ) -> Result<()> {
-    let repos = if let Some(scan_root) = scan {
-        let source = ScanRepoSource::new(
-            scan_root,
-            vec!["target".into(), "node_modules".into(), ".git".into()],
-        );
-        source.list()?
-    } else {
-        let manifest = repo::load_manifest(&manifest_path)
-            .with_context(|| format!("loading manifest {}", manifest_path.display()))?;
-        let source = ManifestRepoSource::new(manifest);
-        source.list()?
-    };
-
-    let repos = if let Some(expr) = filter_expr {
-        let filter = repo::parse_filter(expr)?;
-        repo::apply_filters(&repos, &[filter])
-    } else {
-        repos
-    };
+    let repos = resolve_repos(manifest_path, scan, filter_expr)?;
 
     if repos.is_empty() {
         eprintln!("no repos found");
@@ -354,6 +362,97 @@ fn render_status_table(statuses: &[status::RepoStatus]) {
     }
 
     println!("{table}");
+}
+
+// --- Graph ---
+
+fn run_graph(
+    manifest_path: PathBuf,
+    scan: Option<PathBuf>,
+    filter_expr: Option<&str>,
+    who_uses: Option<String>,
+    deps: Option<String>,
+    format: &str,
+) -> Result<()> {
+    let repos = resolve_repos(manifest_path, scan, filter_expr)?;
+
+    if repos.is_empty() {
+        eprintln!("no repos found");
+        return Ok(());
+    }
+
+    let dep_graph = graph::build_graph(&repos, &FsCargoScanner)?;
+
+    if let Some(pkg) = who_uses {
+        let users = dep_graph.who_uses(&pkg);
+        if users.is_empty() {
+            println!("no packages depend on {pkg}");
+        } else {
+            println!("packages that depend on {pkg}:");
+            for u in &users {
+                let repo = dep_graph
+                    .packages
+                    .get(u)
+                    .map(|p| p.repo.as_str())
+                    .unwrap_or("?");
+                println!("  {u} [{repo}]");
+            }
+        }
+        return Ok(());
+    }
+
+    if let Some(pkg) = deps {
+        let d = dep_graph.deps(&pkg);
+        if d.is_empty() {
+            println!("{pkg} has no known dependencies");
+        } else {
+            println!("dependencies of {pkg}:");
+            for dep in &d {
+                let repo = dep_graph
+                    .packages
+                    .get(dep)
+                    .map(|p| p.repo.as_str())
+                    .unwrap_or("?");
+                println!("  {dep} [{repo}]");
+            }
+        }
+        return Ok(());
+    }
+
+    let fmt = match format {
+        "json" => GraphFormat::Json,
+        "mermaid" => GraphFormat::Mermaid,
+        _ => GraphFormat::Tree,
+    };
+    println!("{}", graph::render_graph(&dep_graph, fmt));
+    Ok(())
+}
+
+/// Shared repo resolution for status and graph subcommands.
+fn resolve_repos(
+    manifest_path: PathBuf,
+    scan: Option<PathBuf>,
+    filter_expr: Option<&str>,
+) -> Result<Vec<repo::RepoMeta>> {
+    let repos = if let Some(scan_root) = scan {
+        let source = ScanRepoSource::new(
+            scan_root,
+            vec!["target".into(), "node_modules".into(), ".git".into()],
+        );
+        source.list()?
+    } else {
+        let manifest = repo::load_manifest(&manifest_path)
+            .with_context(|| format!("loading manifest {}", manifest_path.display()))?;
+        let source = ManifestRepoSource::new(manifest);
+        source.list()?
+    };
+
+    if let Some(expr) = filter_expr {
+        let filter = repo::parse_filter(expr)?;
+        Ok(repo::apply_filters(&repos, &[filter]))
+    } else {
+        Ok(repos)
+    }
 }
 
 // --- External command planning ---
