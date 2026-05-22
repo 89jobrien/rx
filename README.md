@@ -65,6 +65,9 @@ rx install <source>
 rx install <source> --install-dir <dir>
 rx list
 rx run <name> [-- <args...>]
+rx status [--scan <dir>] [--filter <expr>] [--json]
+rx graph [--scan <dir>] [--who-uses <pkg>] [--deps <pkg>] [--format tree|json|mermaid]
+rx fan [--scan <dir>] [-c <N>] [--timeout <secs>] -- <command...>
 rx <command> [args...]
 rxx <script> [-- <args...>]
 ```
@@ -247,6 +250,74 @@ Because command names come from the filename stem, `preflight.sh` and `preflight
 install both into the same registry. The examples treat `preflight.sh` as the installed default and
 run `preflight.rs` directly through `rxx`.
 
+## Multi-Repo Commands
+
+`rx` also includes commands for managing multiple git repositories defined in a
+manifest (`~/.config/rx/repos.toml`) or discovered by scanning a directory tree.
+
+### `rx status`
+
+Show git status across all repos in a table:
+
+```bash
+rx status --scan ~/dev
+rx status --manifest ~/.config/rx/repos.toml
+rx status --filter tag=rust
+rx status --json
+```
+
+Columns: repo, branch, state (clean/DIRTY/STAGED/ERROR), ahead/behind, staged,
+modified, untracked, and last commit with relative time.
+
+### `rx graph`
+
+Show cross-repo Cargo dependency graph:
+
+```bash
+rx graph --scan ~/dev
+rx graph --scan ~/dev --who-uses rx-core
+rx graph --scan ~/dev --deps rx-install
+rx graph --scan ~/dev --format mermaid
+rx graph --format json
+```
+
+Parses `Cargo.toml` files across repos, builds a directed dependency graph, and
+supports `--who-uses` (reverse deps), `--deps` (forward deps), and tree/JSON/Mermaid
+output formats.
+
+### `rx fan`
+
+Run a command across all repos in parallel:
+
+```bash
+rx fan --scan ~/dev -- git fetch --all --prune
+rx fan --scan ~/dev --filter tag=rust -- cargo fmt --check
+rx fan --scan ~/dev -c 4 --timeout 30 -- cargo test
+rx fan --scan ~/dev --dry-run -- git status --short
+rx fan --scan ~/dev --output json -- git log --oneline -1
+rx fan --scan ~/dev --fail-fast -- cargo clippy
+```
+
+Supports `--concurrency` (default: number of CPUs), `--timeout` (per-repo, in
+seconds), `--fail-fast`, `--dry-run`, and grouped (default) or JSON output.
+
+### Manifest Format
+
+```toml
+[defaults]
+root = "~/dev"
+ignore = ["target", "node_modules"]
+
+[[repo]]
+name = "myproject"
+path = "~/dev/myproject"
+role = "lib"
+language = "rust"
+tags = ["rust", "active"]
+```
+
+All three commands share `--scan`, `--manifest`, and `--filter` flags.
+
 ## Current Scope
 
 What `rx` does today:
@@ -257,6 +328,9 @@ What `rx` does today:
 - list installed commands from the CLI
 - run installed compatible commands through `rx`
 - execute compatible scripts directly through `rxx`
+- show git status across repos (`rx status`)
+- visualize cross-repo Cargo dependency graphs (`rx graph`)
+- fan out commands across repos in parallel (`rx fan`)
 
 What is not implemented yet:
 
@@ -268,7 +342,7 @@ What is not implemented yet:
 
 The repo is structured as a small Cargo workspace:
 
-- `crates/rx-core`: runtime detection, install rules, and execution planning
+- `crates/rx-core`: domain logic -- script runtime, repo discovery, status, graph, fan
 - `crates/rx-registry-json`: JSON registry persistence and HTTP fetching adapters
 - `crates/rx-install`: the `rx` CLI
 - `crates/rxx`: the `rxx` CLI

@@ -28,15 +28,23 @@ Use the workspace root for all commands.
 
 Four crates live under `crates/`:
 
-- `rx-core` -- unified domain crate with two modules:
+- `rx-core` -- unified domain crate with four modules:
   - `rx_core::script` -- source resolution, shebang/runtime detection, install rules, and
     execution planning. Types are re-exported at the crate root for convenience.
   - `rx_core::repo` -- multi-repo manifest (`repos.toml`), directory-scan discovery, and
     tag/role/language filtering for `rx status`, `rx graph`, and `rx fan`.
+  - `rx_core::status` -- git status collection across repos. `GitProbe` port trait with
+    `GitCliProbe` adapter (shells out to `git status --porcelain=v2 --branch`). Parallel
+    probing via rayon.
+  - `rx_core::graph` -- cross-repo Cargo dependency graph. `CargoScanner` port trait with
+    `FsCargoScanner` adapter. Queries: `who_uses`, `deps`, `topo_order`. Renders as tree,
+    JSON, or Mermaid.
+  - `rx_core::fan` -- fan-out command execution. Runs a command in every repo with
+    configurable parallelism, per-repo timeout, and fail-fast support.
 - `rx-registry-json` -- JSON registry persistence plus HTTP fetching adapters and XDG default
   path resolution.
-- `rx-install` -- the `rx` CLI binary. Subcommands: `install`, `list`, `run`, `status` (stub),
-  `graph` (stub), `fan` (stub). Also handles external command prefix learning.
+- `rx-install` -- the `rx` CLI binary. Subcommands: `install`, `list`, `run`, `status`,
+  `graph`, `fan`. Also handles external command prefix learning.
 - `rxx` -- direct-run CLI for executing one compatible script without installing it.
 
 A standalone `fuzz/` directory contains `cargo-fuzz` targets (not a workspace member).
@@ -49,6 +57,8 @@ A standalone `fuzz/` directory contains `cargo-fuzz` targets (not a workspace me
 - `RemoteScriptFetcher` -- remote fetch port used for URL installs
 - `ScriptReader`, `ScriptWriter`, `DirectoryScanner` -- filesystem ports
 - `RepoSource` -- port for repo metadata (manifest-backed or scan-backed)
+- `GitProbe` -- port for probing git repo status (adapter: `GitCliProbe`)
+- `CargoScanner` -- port for scanning repos for Cargo.toml files (adapter: `FsCargoScanner`)
 - `ExecutionPlan` -- normalized launch plan used by both `rx` and `rxx`
 
 Conformance test suites live behind the `test-support` feature in `rx-core` and verify any
