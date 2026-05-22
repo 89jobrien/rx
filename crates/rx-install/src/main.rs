@@ -4,6 +4,8 @@ use rx_core::{
     CommandPrefixConfig, DirectRunRequest, ExecutionPlan, InstallRequest, RunRequest,
     apply_command_prefix, format_registry_entry, install, list_installed, plan_direct_run,
     plan_installed_run,
+    repo::{self, ManifestRepoSource, RepoSource, ScanRepoSource},
+    status::{self, git_cli::GitCliProbe},
 };
 use rx_registry_json::{
     FsScriptReader, FsScriptWriter, JsonRegistryStore, ReqwestFetcher, WalkdirScanner,
@@ -128,7 +130,20 @@ enum Command {
         args: Vec<String>,
     },
     /// Show git status across all repos in the manifest
-    Status,
+    Status {
+        /// Path to repos.toml manifest
+        #[arg(long, value_name = "FILE", default_value_os_t = default_manifest_path())]
+        manifest: PathBuf,
+        /// Scan a directory for git repos instead of using the manifest
+        #[arg(long, value_name = "DIR")]
+        scan: Option<PathBuf>,
+        /// Filter repos (e.g. tag=rust, role=lib, name~dev*)
+        #[arg(long, short)]
+        filter: Option<String>,
+        /// Output JSON instead of a table
+        #[arg(long)]
+        json: bool,
+    },
     /// Show cross-repo Cargo dependency graph
     Graph,
     /// Run a command across all repos in the manifest
@@ -194,9 +209,13 @@ fn main() -> Result<()> {
             let status = execute_plan(&ProcessRunner, &plan, &prefix_store)?;
             exit_with_status(status);
         }
-        Command::Status => {
-            eprintln!("rx status: not yet implemented");
-            exit(2);
+        Command::Status {
+            manifest,
+            scan,
+            filter,
+            json,
+        } => {
+            run_status(manifest, scan, filter.as_deref(), json)?;
         }
         Command::Graph => {
             eprintln!("rx graph: not yet implemented");
@@ -242,6 +261,99 @@ fn default_prefix_config_path() -> PathBuf {
     default_paths()
         .map(|paths| paths.root.join("prefixes.toml"))
         .unwrap_or_else(|_| PathBuf::from("prefixes.toml"))
+}
+
+// --- Manifest path default ---
+
+fn default_manifest_path() -> PathBuf {
+    default_paths()
+        .map(|paths| paths.root.join("repos.toml"))
+        .unwrap_or_else(|_| PathBuf::from("repos.toml"))
+}
+
+// --- Status ---
+
+fn run_status(
+    manifest_path: PathBuf,
+    scan: Option<PathBuf>,
+    filter_expr: Option<&str>,
+    json: bool,
+) -> Result<()> {
+    let repos = if let Some(scan_root) = scan {
+        let source = ScanRepoSource::new(
+            scan_root,
+            vec!["target".into(), "node_modules".into(), ".git".into()],
+        );
+        source.list()?
+    } else {
+        let manifest = repo::load_manifest(&manifest_path)
+            .with_context(|| format!("loading manifest {}", manifest_path.display()))?;
+        let source = ManifestRepoSource::new(manifest);
+        source.list()?
+    };
+
+    let repos = if let Some(expr) = filter_expr {
+        let filter = repo::parse_filter(expr)?;
+        repo::apply_filters(&repos, &[filter])
+    } else {
+        repos
+    };
+
+    if repos.is_empty() {
+        eprintln!("no repos found");
+        return Ok(());
+    }
+
+    let statuses = status::collect_status(&repos, &GitCliProbe);
+
+    if json {
+        let json_out = serde_json::to_string_pretty(&statuses)?;
+        println!("{json_out}");
+    } else {
+        render_status_table(&statuses);
+    }
+
+    Ok(())
+}
+
+fn render_status_table(statuses: &[status::RepoStatus]) {
+    use comfy_table::{ContentArrangement, Table, presets::UTF8_FULL_CONDENSED};
+
+    let mut table = Table::new();
+    table
+        .load_preset(UTF8_FULL_CONDENSED)
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_header(vec![
+            "Repo",
+            "Branch",
+            "State",
+            "Ahead",
+            "Behind",
+            "Staged",
+            "Modified",
+            "Untracked",
+            "Last Commit",
+        ]);
+
+    for s in statuses {
+        let last = s.last_commit.as_ref().map_or_else(
+            || "-".to_string(),
+            |c| format!("{} ({})", c.subject, status::relative_time(c.timestamp)),
+        );
+        table.add_row(vec![
+            s.name.clone(),
+            s.branch.clone().unwrap_or_else(|| "(detached)".into()),
+            s.state_label().to_string(),
+            s.ahead.to_string(),
+            s.behind.to_string(),
+            s.staged.to_string(),
+            s.modified.to_string(),
+            s.untracked.to_string(),
+            last,
+        ]);
+    }
+
+    println!("{table}");
 }
 
 // --- External command planning ---
