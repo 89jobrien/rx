@@ -1,3 +1,5 @@
+//! Core operations for installing and running scripts and inspecting repositories.
+
 pub mod fan;
 pub mod graph;
 pub mod repo;

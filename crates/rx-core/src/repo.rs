@@ -8,9 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-// =========================================================================
 // Manifest types
-// =========================================================================
 
 /// Top-level manifest persisted at `~/.config/rx/repos.toml`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,9 +50,7 @@ pub struct RepoMeta {
     pub tags: Vec<String>,
 }
 
-// =========================================================================
 // Default paths
-// =========================================================================
 
 /// Expand a leading `~` against `$HOME`. Other path forms are returned
 /// unchanged.
@@ -86,9 +82,7 @@ pub fn resolve_manifest_path(input: &Path, manifest_dir: &Path) -> Result<PathBu
     }
 }
 
-// =========================================================================
 // Manifest load / save
-// =========================================================================
 
 /// Load a manifest from disk and resolve repo paths relative to the
 /// manifest's parent directory.
@@ -141,9 +135,7 @@ fn validate_manifest(manifest: &Manifest) -> Result<()> {
     Ok(())
 }
 
-// =========================================================================
 // Discovery
-// =========================================================================
 
 /// Walk `root` and return one `RepoMeta` for every directory containing a
 /// `.git` entry. Directories whose basename appears in `ignore` are pruned
@@ -207,9 +199,7 @@ fn is_ignored(entry: &walkdir::DirEntry, ignore: &[String]) -> bool {
     ignore.iter().any(|i| i == name)
 }
 
-// =========================================================================
 // Filters
-// =========================================================================
 
 /// A single filter expression. Multiple filters are AND-ed by
 /// [`apply_filters`].
@@ -325,13 +315,12 @@ fn glob_match(pattern: &str, candidate: &str) -> bool {
     true
 }
 
-// =========================================================================
 // Ports + adapters
-// =========================================================================
 
 /// Source of repo metadata. Adapters provide manifest-backed or
 /// filesystem-backed implementations.
 pub trait RepoSource {
+    /// Loads repository metadata from this source.
     fn list(&self) -> Result<Vec<RepoMeta>>;
 }
 
@@ -341,10 +330,12 @@ pub struct ManifestRepoSource {
 }
 
 impl ManifestRepoSource {
+    /// Creates a source backed by the provided manifest.
     pub fn new(manifest: Manifest) -> Self {
         Self { manifest }
     }
 
+    /// Returns the backing manifest.
     pub fn manifest(&self) -> &Manifest {
         &self.manifest
     }
@@ -363,6 +354,7 @@ pub struct ScanRepoSource {
 }
 
 impl ScanRepoSource {
+    /// Creates a source that scans `root`, excluding matching paths.
     pub fn new(root: PathBuf, ignore: Vec<String>) -> Self {
         Self { root, ignore }
     }
@@ -387,9 +379,7 @@ impl RepoSource for ScanRepoSource {
     }
 }
 
-// =========================================================================
 // Tests
-// =========================================================================
 
 #[cfg(test)]
 mod tests {

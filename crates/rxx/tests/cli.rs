@@ -1,3 +1,5 @@
+//! End-to-end tests for direct script execution through `rxx`.
+
 use assert_cmd::Command;
 use std::fs;
 use tempfile::tempdir;

@@ -10,9 +10,7 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-// =========================================================================
 // Domain types
-// =========================================================================
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FanResult {
@@ -28,10 +26,12 @@ pub struct FanResult {
 }
 
 impl FanResult {
+    /// Returns whether the command exited successfully.
     pub fn passed(&self) -> bool {
         self.exit_code == Some(0)
     }
 
+    /// Returns whether execution failed because its timeout elapsed.
     pub fn timed_out(&self) -> bool {
         self.error
             .as_deref()
@@ -50,6 +50,7 @@ pub struct FanReport {
 }
 
 impl FanReport {
+    /// Builds a report and derives aggregate outcome counts from the results.
     pub fn from_results(command: Vec<String>, results: Vec<FanResult>, total_ms: u128) -> Self {
         let passed = results.iter().filter(|r| r.passed()).count();
         let timed_out = results.iter().filter(|r| r.timed_out()).count();
@@ -65,9 +66,7 @@ impl FanReport {
     }
 }
 
-// =========================================================================
 // Configuration
-// =========================================================================
 
 #[derive(Debug, Clone)]
 pub struct FanConfig {
@@ -77,9 +76,7 @@ pub struct FanConfig {
     pub fail_fast: bool,
 }
 
-// =========================================================================
 // Execution
-// =========================================================================
 
 /// Run `config.command` in each repo's directory, with bounded parallelism.
 pub fn fan_out(repos: &[RepoMeta], config: &FanConfig) -> FanReport {
@@ -257,9 +254,7 @@ fn wait_with_timeout(child: &mut std::process::Child, timeout: Duration) -> Wait
     }
 }
 
-// =========================================================================
 // Rendering
-// =========================================================================
 
 /// Render grouped output (default).
 pub fn render_grouped(report: &FanReport) -> String {
@@ -307,9 +302,7 @@ pub fn render_grouped(report: &FanReport) -> String {
     out
 }
 
-// =========================================================================
 // Tests
-// =========================================================================
 
 #[cfg(test)]
 mod tests {

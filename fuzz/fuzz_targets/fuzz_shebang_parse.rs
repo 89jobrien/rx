@@ -1,3 +1,5 @@
+//! Fuzzes runtime detection with arbitrary UTF-8 script contents.
+
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;

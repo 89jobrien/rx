@@ -10,9 +10,7 @@ use rayon::prelude::*;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
-// =========================================================================
 // Domain types
-// =========================================================================
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RepoStatus {
@@ -71,18 +69,15 @@ impl RepoStatus {
     }
 }
 
-// =========================================================================
 // Port
-// =========================================================================
 
 /// Probes a single git repo for branch, status, and last commit info.
 pub trait GitProbe: Sync {
+    /// Collects branch, worktree, and latest-commit metadata for a repository.
     fn probe(&self, repo_path: &Path) -> RepoStatus;
 }
 
-// =========================================================================
 // Orchestrator
-// =========================================================================
 
 /// Collect git status for every repo in parallel.
 pub fn collect_status(repos: &[RepoMeta], probe: &impl GitProbe) -> Vec<RepoStatus> {
@@ -96,9 +91,119 @@ pub fn collect_status(repos: &[RepoMeta], probe: &impl GitProbe) -> Vec<RepoStat
         .collect()
 }
 
-// =========================================================================
+// Porcelain v2 line classification
+
+/// A single classified line from `git status --porcelain=v2 --branch`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParsedLine {
+    BranchHead(Option<String>),
+    BranchUpstream(String),
+    BranchAB { ahead: u32, behind: u32 },
+    Changed { staged: bool, modified: bool },
+    Untracked,
+    Other,
+}
+
+/// Classify one line of porcelain v2 output into a [`ParsedLine`].
+pub fn classify_line(line: &str) -> ParsedLine {
+    if let Some(rest) = line.strip_prefix("# branch.head ") {
+        if rest == "(detached)" {
+            ParsedLine::BranchHead(None)
+        } else {
+            ParsedLine::BranchHead(Some(rest.to_string()))
+        }
+    } else if let Some(rest) = line.strip_prefix("# branch.upstream ") {
+        ParsedLine::BranchUpstream(rest.to_string())
+    } else if let Some(rest) = line.strip_prefix("# branch.ab ") {
+        let parts: Vec<&str> = rest.split_whitespace().collect();
+        let ahead = parts
+            .first()
+            .and_then(|a| a.trim_start_matches('+').parse().ok())
+            .unwrap_or(0);
+        let behind = parts
+            .get(1)
+            .and_then(|b| b.trim_start_matches('-').parse().ok())
+            .unwrap_or(0);
+        ParsedLine::BranchAB { ahead, behind }
+    } else if line.starts_with("1 ") || line.starts_with("2 ") {
+        let xy = line.as_bytes().get(2..4).unwrap_or_default();
+        let staged = xy.first().is_some_and(|&b| b != b'.');
+        let modified = xy.get(1).is_some_and(|&b| b != b'.');
+        ParsedLine::Changed { staged, modified }
+    } else if line.starts_with("? ") {
+        ParsedLine::Untracked
+    } else {
+        ParsedLine::Other
+    }
+}
+
+/// Fold classified lines into a [`RepoStatus`].
+pub fn build_status(lines: &[ParsedLine], repo_path: &Path) -> RepoStatus {
+    let name = repo_path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("?")
+        .to_string();
+
+    let mut branch: Option<String> = None;
+    let mut upstream: Option<String> = None;
+    let mut ahead: u32 = 0;
+    let mut behind: u32 = 0;
+    let mut staged: u32 = 0;
+    let mut modified: u32 = 0;
+    let mut untracked: u32 = 0;
+
+    for line in lines {
+        match line {
+            ParsedLine::BranchHead(head) => branch = head.clone(),
+            ParsedLine::BranchUpstream(up) => upstream = Some(up.clone()),
+            ParsedLine::BranchAB {
+                ahead: a,
+                behind: b,
+            } => {
+                ahead = *a;
+                behind = *b;
+            }
+            ParsedLine::Changed {
+                staged: s,
+                modified: m,
+            } => {
+                if *s {
+                    staged += 1;
+                }
+                if *m {
+                    modified += 1;
+                }
+            }
+            ParsedLine::Untracked => untracked += 1,
+            ParsedLine::Other => {}
+        }
+    }
+
+    let dirty = staged > 0 || modified > 0 || untracked > 0;
+
+    RepoStatus {
+        name,
+        path: repo_path.to_path_buf(),
+        branch,
+        upstream,
+        ahead,
+        behind,
+        dirty,
+        untracked,
+        staged,
+        modified,
+        last_commit: None,
+        error: None,
+    }
+}
+
 // Relative time formatting
-// =========================================================================
+
+const SECS_PER_MINUTE: i64 = 60;
+const SECS_PER_HOUR: i64 = 3_600;
+const SECS_PER_DAY: i64 = 86_400;
+const SECS_PER_WEEK: i64 = 604_800;
 
 /// Format a unix timestamp as a relative time string (e.g. "3h", "2d").
 pub fn relative_time(timestamp: i64) -> String {
@@ -108,16 +213,16 @@ pub fn relative_time(timestamp: i64) -> String {
         .unwrap_or(0);
     let delta = (now - timestamp).max(0);
 
-    if delta < 60 {
+    if delta < SECS_PER_MINUTE {
         format!("{delta}s")
-    } else if delta < 3600 {
-        format!("{}m", delta / 60)
-    } else if delta < 86400 {
-        format!("{}h", delta / 3600)
-    } else if delta < 604800 {
-        format!("{}d", delta / 86400)
+    } else if delta < SECS_PER_HOUR {
+        format!("{}m", delta / SECS_PER_MINUTE)
+    } else if delta < SECS_PER_DAY {
+        format!("{}h", delta / SECS_PER_HOUR)
+    } else if delta < SECS_PER_WEEK {
+        format!("{}d", delta / SECS_PER_DAY)
     } else {
-        format!("{}w", delta / 604800)
+        format!("{}w", delta / SECS_PER_WEEK)
     }
 }
 
@@ -215,6 +320,132 @@ mod tests {
         let s = RepoStatus::errored("bad", Path::new("/bad"), "broken".to_string());
         assert_eq!(s.error.as_deref(), Some("broken"));
         assert_eq!(s.state_label(), "ERROR");
+    }
+
+    // --- classify_line tests ---
+
+    #[test]
+    fn classify_line_branch_head() {
+        assert_eq!(
+            classify_line("# branch.head main"),
+            ParsedLine::BranchHead(Some("main".to_string()))
+        );
+    }
+
+    #[test]
+    fn classify_line_detached() {
+        assert_eq!(
+            classify_line("# branch.head (detached)"),
+            ParsedLine::BranchHead(None)
+        );
+    }
+
+    #[test]
+    fn classify_line_upstream() {
+        assert_eq!(
+            classify_line("# branch.upstream origin/main"),
+            ParsedLine::BranchUpstream("origin/main".to_string())
+        );
+    }
+
+    #[test]
+    fn classify_line_ab() {
+        assert_eq!(
+            classify_line("# branch.ab +3 -1"),
+            ParsedLine::BranchAB {
+                ahead: 3,
+                behind: 1
+            }
+        );
+    }
+
+    #[test]
+    fn classify_line_changed_staged() {
+        assert_eq!(
+            classify_line("1 A. N... 000000 100644 100644 000000 abc123 new.rs"),
+            ParsedLine::Changed {
+                staged: true,
+                modified: false
+            }
+        );
+    }
+
+    #[test]
+    fn classify_line_changed_modified() {
+        assert_eq!(
+            classify_line("1 .M N... 100644 100644 100644 abc123 def456 src/main.rs"),
+            ParsedLine::Changed {
+                staged: false,
+                modified: true
+            }
+        );
+    }
+
+    #[test]
+    fn classify_line_untracked() {
+        assert_eq!(classify_line("? foo.txt"), ParsedLine::Untracked);
+    }
+
+    #[test]
+    fn classify_line_other() {
+        assert_eq!(
+            classify_line("# branch.oid abc1234567890"),
+            ParsedLine::Other
+        );
+    }
+
+    // --- build_status tests ---
+
+    #[test]
+    fn build_status_clean() {
+        let lines = vec![
+            ParsedLine::Other, // branch.oid
+            ParsedLine::BranchHead(Some("main".to_string())),
+            ParsedLine::BranchUpstream("origin/main".to_string()),
+            ParsedLine::BranchAB {
+                ahead: 0,
+                behind: 0,
+            },
+        ];
+        let s = build_status(&lines, Path::new("/tmp/test"));
+        assert_eq!(s.branch.as_deref(), Some("main"));
+        assert_eq!(s.upstream.as_deref(), Some("origin/main"));
+        assert_eq!(s.ahead, 0);
+        assert_eq!(s.behind, 0);
+        assert!(!s.dirty);
+    }
+
+    #[test]
+    fn build_status_dirty() {
+        let lines = vec![
+            ParsedLine::BranchHead(Some("feat".to_string())),
+            ParsedLine::BranchAB {
+                ahead: 2,
+                behind: 0,
+            },
+            ParsedLine::Changed {
+                staged: true,
+                modified: false,
+            },
+            ParsedLine::Changed {
+                staged: false,
+                modified: true,
+            },
+            ParsedLine::Untracked,
+        ];
+        let s = build_status(&lines, Path::new("/tmp/test"));
+        assert!(s.dirty);
+        assert_eq!(s.staged, 1);
+        assert_eq!(s.modified, 1);
+        assert_eq!(s.untracked, 1);
+        assert_eq!(s.ahead, 2);
+    }
+
+    #[test]
+    fn build_status_detached() {
+        let lines = vec![ParsedLine::Other, ParsedLine::BranchHead(None)];
+        let s = build_status(&lines, Path::new("/tmp/test"));
+        assert!(s.branch.is_none());
     }
 
     #[test]

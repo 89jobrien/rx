@@ -1,3 +1,5 @@
+//! Direct-run CLI for executing a compatible script without installing it.
+
 use anyhow::{Context, Result};
 use clap::Parser;
 use rx_core::{DirectRunRequest, ExecutionPlan, plan_direct_run};

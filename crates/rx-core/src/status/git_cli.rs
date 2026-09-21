@@ -4,7 +4,7 @@
 //! to collect per-repo status. This is the default adapter; callers can
 //! swap in a fake for testing.
 
-use super::{CommitMeta, GitProbe, RepoStatus};
+use super::{CommitMeta, GitProbe, RepoStatus, build_status, classify_line};
 use std::path::Path;
 use std::process::Command;
 
@@ -45,67 +45,8 @@ fn probe_impl(repo_path: &Path) -> Result<RepoStatus, Box<dyn std::error::Error>
 }
 
 fn parse_porcelain_v2(output: &str, repo_path: &Path) -> RepoStatus {
-    let name = repo_path
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or("?")
-        .to_string();
-
-    let mut branch: Option<String> = None;
-    let mut upstream: Option<String> = None;
-    let mut ahead: u32 = 0;
-    let mut behind: u32 = 0;
-    let mut staged: u32 = 0;
-    let mut modified: u32 = 0;
-    let mut untracked: u32 = 0;
-
-    for line in output.lines() {
-        if let Some(rest) = line.strip_prefix("# branch.head ") {
-            if rest != "(detached)" {
-                branch = Some(rest.to_string());
-            }
-        } else if let Some(rest) = line.strip_prefix("# branch.upstream ") {
-            upstream = Some(rest.to_string());
-        } else if let Some(rest) = line.strip_prefix("# branch.ab ") {
-            let parts: Vec<&str> = rest.split_whitespace().collect();
-            if let Some(a) = parts.first() {
-                ahead = a.trim_start_matches('+').parse().unwrap_or(0);
-            }
-            if let Some(b) = parts.get(1) {
-                behind = b.trim_start_matches('-').parse().unwrap_or(0);
-            }
-        } else if line.starts_with("1 ") || line.starts_with("2 ") {
-            // Changed entry: XY format at position 2..4
-            let xy: Vec<u8> = line.as_bytes().get(2..4).unwrap_or_default().to_vec();
-            if xy.len() == 2 {
-                if xy[0] != b'.' {
-                    staged += 1;
-                }
-                if xy[1] != b'.' {
-                    modified += 1;
-                }
-            }
-        } else if line.starts_with("? ") {
-            untracked += 1;
-        }
-    }
-
-    let dirty = staged > 0 || modified > 0 || untracked > 0;
-
-    RepoStatus {
-        name,
-        path: repo_path.to_path_buf(),
-        branch,
-        upstream,
-        ahead,
-        behind,
-        dirty,
-        untracked,
-        staged,
-        modified,
-        last_commit: None,
-        error: None,
-    }
+    let lines: Vec<_> = output.lines().map(classify_line).collect();
+    build_status(&lines, repo_path)
 }
 
 fn probe_last_commit(repo_path: &Path) -> Result<CommitMeta, Box<dyn std::error::Error>> {
@@ -172,8 +113,8 @@ mod tests {
         assert_eq!(status.ahead, 3);
         assert_eq!(status.behind, 1);
         assert!(status.dirty);
-        assert_eq!(status.staged, 1); // A.
-        assert_eq!(status.modified, 1); // .M
+        assert_eq!(status.staged, 1); // Index status `A` marks the added file.
+        assert_eq!(status.modified, 1); // Worktree status `M` marks the modified file.
         assert_eq!(status.untracked, 1);
     }
 

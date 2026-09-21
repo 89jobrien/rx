@@ -1,0 +1,14 @@
+[package]
+name = "rx-runner"
+version = "0.1.1"
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Runtime-neutral process execution with bounded streaming output and cancellation"
+readme = "README.md"
+keywords = ["process", "runner", "tui", "command", "streaming"]
+categories = ["development-tools", "command-line-utilities"]
+
+[dependencies]

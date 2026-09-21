@@ -1,0 +1,3 @@
+- write: rx workspace architecture
+- write: rx-core
+- write: rx-install

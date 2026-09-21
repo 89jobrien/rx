@@ -1,0 +1,510 @@
+{
+  "nodes": [
+    {
+      "id": "58b4fce6-062d-41c3-97fd-8cdfdfee266d",
+      "name": "RepoMeta",
+      "type": "struct",
+      "supporting_text": "repo entry with name, path, role, language, default_branch, tags",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "1504bb5f-61d2-4969-9510-679249db3707",
+      "name": "ReqwestFetcher",
+      "type": "adapter",
+      "supporting_text": "implements RemoteScriptFetcher using reqwest",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "3a3efce7-52fd-4072-bec0-3a4f32b93882",
+      "name": "CommandPrefixConfig",
+      "type": "struct",
+      "supporting_text": "prefix learning config with candidate_prefixes, mappings, learn_on_successful_fallback",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "45ff4ffd-480a-47e0-840e-39831c05fc41",
+      "name": "RegistryStore",
+      "type": "trait",
+      "supporting_text": "persistence port for listing and upserting installed scripts",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "bfb256a4-5fe8-4d0d-a9b9-05d7c773f35a",
+      "name": "fan module",
+      "type": "module",
+      "supporting_text": "fan-out command execution with configurable parallelism, timeout, fail-fast",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "dd1c098d-fc57-4e06-a239-f21a73779b77",
+      "name": "rx-registry-json",
+      "type": "crate",
+      "supporting_text": "JSON registry persistence plus HTTP fetching adapters and XDG path resolution",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "2696af3f-1b1a-4835-ab36-ccd2dede26d8",
+      "name": "graph module",
+      "type": "module",
+      "supporting_text": "cross-repo Cargo dependency graph with who_uses, deps, topo_order queries",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "0c4530c2-edb9-4aad-8e96-c693932ec376",
+      "name": "GitProbe",
+      "type": "trait",
+      "supporting_text": "port for probing git repo status",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "c923ec4c-b2f1-45ec-b5d1-3e01541b575a",
+      "name": "status module",
+      "type": "module",
+      "supporting_text": "git status collection across repos with parallel probing via rayon",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "81778d71-0927-41b7-88f6-ee785cf39b01",
+      "name": "DepGraph",
+      "type": "struct",
+      "supporting_text": "cross-repo Cargo dependency graph with packages and edges",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "5d863ecd-fffe-40fd-b917-6d698cd446d0",
+      "name": "FsScriptReader",
+      "type": "adapter",
+      "supporting_text": "implements ScriptReader, reads from filesystem",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "7e1bb06a-73c3-4ec4-845e-460a1945ccb9",
+      "name": "RepoSource",
+      "type": "trait",
+      "supporting_text": "port for repo metadata listing",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "78651b08-ed18-459b-8053-acc6f161928e",
+      "name": "FsCargoScanner",
+      "type": "adapter",
+      "supporting_text": "implements CargoScanner by scanning filesystem for Cargo.toml",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "67d5d39b-78f6-464b-b29f-19815323c95b",
+      "name": "CargoScanner",
+      "type": "trait",
+      "supporting_text": "port for scanning repos for Cargo.toml files",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "c115f54b-2bb1-4d3c-b163-12432cd1864a",
+      "name": "RemoteScriptFetcher",
+      "type": "trait",
+      "supporting_text": "remote fetch port used for URL installs",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "da3cc3ac-572a-43f3-b511-b599fe510f21",
+      "name": "rxx",
+      "type": "crate",
+      "supporting_text": "direct-run CLI for executing one compatible script without installing",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "9617fc38-d168-4e76-a541-6e28bf2344e9",
+      "name": "script module",
+      "type": "module",
+      "supporting_text": "source resolution, shebang/runtime detection, install rules, execution planning",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "90c5a441-cc3a-4da4-8c0f-1bc90f7aab38",
+      "name": "ManifestRepoSource",
+      "type": "adapter",
+      "supporting_text": "implements RepoSource from repos.toml manifest",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "849b025a-753e-463a-bb76-a5df5b222df0",
+      "name": "Runtime",
+      "type": "enum",
+      "supporting_text": "supported script runtimes: RustScript, Python, JavaScript, TypeScript, Bash, Zsh, Fish, Nushell, Ruby",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "2dad1fa4-e3a5-4e7e-bc93-18d8dd19f770",
+      "name": "DirectoryScanner",
+      "type": "trait",
+      "supporting_text": "filesystem port for scanning directories",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "a6b277d4-c4fd-473f-8100-72330ce768b8",
+      "name": "rx-install",
+      "type": "crate",
+      "supporting_text": "the rx CLI binary with subcommands install, list, run, status, graph, fan",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "bb406073-7599-4ef5-97f4-c6103161dbb6",
+      "name": "ExecutionPlan",
+      "type": "struct",
+      "supporting_text": "normalized launch plan with program and args, used by both rx and rxx",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "6bc22325-092d-4623-9061-21531b061284",
+      "name": "rx-core",
+      "type": "crate",
+      "supporting_text": "unified domain crate with modules script, repo, status, graph, fan",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "4a9fc9fd-f000-45f8-84f5-7a84e127e775",
+      "name": "repo module",
+      "type": "module",
+      "supporting_text": "multi-repo manifest, directory-scan discovery, tag/role/language filtering",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "2f827df8-4042-4afe-92fa-202375e8da49",
+      "name": "ScriptReader",
+      "type": "trait",
+      "supporting_text": "filesystem port for reading script content",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "10b67685-4066-4438-ba10-29d17492e09a",
+      "name": "ScriptWriter",
+      "type": "trait",
+      "supporting_text": "filesystem port for writing scripts to install dir",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "0cd33254-df23-4e82-a41b-2a660ad3a10e",
+      "name": "JsonRegistryStore",
+      "type": "adapter",
+      "supporting_text": "implements RegistryStore, persists to JSON file",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "ccf5dd26-74d8-47b4-a40d-94bbbecb5ac3",
+      "name": "FsScriptWriter",
+      "type": "adapter",
+      "supporting_text": "implements ScriptWriter, writes to filesystem and sets executable bit",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "4a28b519-6672-413d-ab0d-9839a8aa03d6",
+      "name": "ScanRepoSource",
+      "type": "adapter",
+      "supporting_text": "implements RepoSource by scanning directories for git repos",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "c7fa5ea6-501f-4890-a1f9-32fe22c0b636",
+      "name": "WalkdirScanner",
+      "type": "adapter",
+      "supporting_text": "implements DirectoryScanner using walkdir",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "330e1701-cf8e-4a15-b5be-1abea4636ed6",
+      "name": "GitCliProbe",
+      "type": "adapter",
+      "supporting_text": "implements GitProbe by shelling out to git status --porcelain=v2 --branch",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "ed996584-14d7-4d27-96c2-fcc8f33e0b9b",
+      "name": "RepoStatus",
+      "type": "struct",
+      "supporting_text": "git status for a repo: branch, ahead/behind, dirty, staged, modified, untracked, last_commit",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    },
+    {
+      "id": "94fa54c3-7e6b-4da5-a179-76ad31eff32c",
+      "name": "FanReport",
+      "type": "struct",
+      "supporting_text": "fan-out execution report with results, passed/failed/timed_out counts",
+      "source_docs": [
+        "rx_architecture"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "89f16e7f-d1c9-49bf-886a-feed03c42ec2",
+      "source": "a6b277d4-c4fd-473f-8100-72330ce768b8",
+      "target": "6bc22325-092d-4623-9061-21531b061284",
+      "type": "depends_on",
+      "confidence": 1.0,
+      "supporting_text": "rx-install imports from rx_core",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "f8574c69-ca46-4001-b0e4-169d9e31507b",
+      "source": "a6b277d4-c4fd-473f-8100-72330ce768b8",
+      "target": "dd1c098d-fc57-4e06-a239-f21a73779b77",
+      "type": "depends_on",
+      "confidence": 1.0,
+      "supporting_text": "rx-install imports JsonRegistryStore etc from rx_registry_json",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "bd0f35dc-c39e-4e22-af90-e572b66bad22",
+      "source": "da3cc3ac-572a-43f3-b511-b599fe510f21",
+      "target": "6bc22325-092d-4623-9061-21531b061284",
+      "type": "depends_on",
+      "confidence": 1.0,
+      "supporting_text": "rxx imports DirectRunRequest, plan_direct_run from rx_core",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "4d3e75c2-f0ec-4814-85c2-6d05598cb91b",
+      "source": "da3cc3ac-572a-43f3-b511-b599fe510f21",
+      "target": "dd1c098d-fc57-4e06-a239-f21a73779b77",
+      "type": "depends_on",
+      "confidence": 1.0,
+      "supporting_text": "rxx imports FsScriptReader from rx_registry_json",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "b4ed3223-5e3f-4bb3-b107-cb7ffa05c3fd",
+      "source": "dd1c098d-fc57-4e06-a239-f21a73779b77",
+      "target": "6bc22325-092d-4623-9061-21531b061284",
+      "type": "depends_on",
+      "confidence": 1.0,
+      "supporting_text": "rx-registry-json imports RegistryStore, InstalledScript etc from rx_core",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "92cd112f-2808-49d2-9530-6622f4043d51",
+      "source": "6bc22325-092d-4623-9061-21531b061284",
+      "target": "9617fc38-d168-4e76-a541-6e28bf2344e9",
+      "type": "contains",
+      "confidence": 1.0,
+      "supporting_text": "pub mod script in rx-core lib.rs",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "c7902d6d-7666-4f0d-85fb-db75b1ec225b",
+      "source": "6bc22325-092d-4623-9061-21531b061284",
+      "target": "4a9fc9fd-f000-45f8-84f5-7a84e127e775",
+      "type": "contains",
+      "confidence": 1.0,
+      "supporting_text": "pub mod repo in rx-core lib.rs",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "24cdc863-bd3a-4cf4-a21d-d2071983bddf",
+      "source": "6bc22325-092d-4623-9061-21531b061284",
+      "target": "c923ec4c-b2f1-45ec-b5d1-3e01541b575a",
+      "type": "contains",
+      "confidence": 1.0,
+      "supporting_text": "pub mod status in rx-core lib.rs",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "971799e5-acfe-4f3b-bf7c-20f2970761a0",
+      "source": "6bc22325-092d-4623-9061-21531b061284",
+      "target": "2696af3f-1b1a-4835-ab36-ccd2dede26d8",
+      "type": "contains",
+      "confidence": 1.0,
+      "supporting_text": "pub mod graph in rx-core lib.rs",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "97bb6726-5ad1-4f4c-b3fb-73c56918ce6e",
+      "source": "6bc22325-092d-4623-9061-21531b061284",
+      "target": "bfb256a4-5fe8-4d0d-a9b9-05d7c773f35a",
+      "type": "contains",
+      "confidence": 1.0,
+      "supporting_text": "pub mod fan in rx-core lib.rs",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "dd020857-6586-4552-8a16-bef487cefbae",
+      "source": "0cd33254-df23-4e82-a41b-2a660ad3a10e",
+      "target": "45ff4ffd-480a-47e0-840e-39831c05fc41",
+      "type": "implements",
+      "confidence": 1.0,
+      "supporting_text": "impl RegistryStore for JsonRegistryStore",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "c1f637f8-a478-42ec-b261-96ebabbaaee7",
+      "source": "1504bb5f-61d2-4969-9510-679249db3707",
+      "target": "c115f54b-2bb1-4d3c-b163-12432cd1864a",
+      "type": "implements",
+      "confidence": 1.0,
+      "supporting_text": "impl RemoteScriptFetcher for ReqwestFetcher",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "c2091bcb-c376-4b15-8dab-6985234ddf16",
+      "source": "ccf5dd26-74d8-47b4-a40d-94bbbecb5ac3",
+      "target": "10b67685-4066-4438-ba10-29d17492e09a",
+      "type": "implements",
+      "confidence": 1.0,
+      "supporting_text": "impl ScriptWriter for FsScriptWriter",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "d52cd83e-7d0b-4735-bfdf-55150263e6d2",
+      "source": "5d863ecd-fffe-40fd-b917-6d698cd446d0",
+      "target": "2f827df8-4042-4afe-92fa-202375e8da49",
+      "type": "implements",
+      "confidence": 1.0,
+      "supporting_text": "impl ScriptReader for FsScriptReader",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "7d8ece37-bcc3-4073-b709-8258e071a0b2",
+      "source": "c7fa5ea6-501f-4890-a1f9-32fe22c0b636",
+      "target": "2dad1fa4-e3a5-4e7e-bc93-18d8dd19f770",
+      "type": "implements",
+      "confidence": 1.0,
+      "supporting_text": "impl DirectoryScanner for WalkdirScanner",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "46e908aa-2709-4386-881b-73db7cd7f4f1",
+      "source": "330e1701-cf8e-4a15-b5be-1abea4636ed6",
+      "target": "0c4530c2-edb9-4aad-8e96-c693932ec376",
+      "type": "implements",
+      "confidence": 1.0,
+      "supporting_text": "GitCliProbe adapter shells out to git status",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "cd9b3449-08ee-4700-8cb1-4e56cb1a9592",
+      "source": "78651b08-ed18-459b-8053-acc6f161928e",
+      "target": "67d5d39b-78f6-464b-b29f-19815323c95b",
+      "type": "implements",
+      "confidence": 1.0,
+      "supporting_text": "FsCargoScanner scans filesystem for Cargo.toml",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "1ce63426-2d60-46a3-ae09-db9785238415",
+      "source": "90c5a441-cc3a-4da4-8c0f-1bc90f7aab38",
+      "target": "7e1bb06a-73c3-4ec4-845e-460a1945ccb9",
+      "type": "implements",
+      "confidence": 1.0,
+      "supporting_text": "ManifestRepoSource implements RepoSource from manifest",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "6d9ee134-8290-46a5-ace2-92e0ba0edb15",
+      "source": "4a28b519-6672-413d-ab0d-9839a8aa03d6",
+      "target": "7e1bb06a-73c3-4ec4-845e-460a1945ccb9",
+      "type": "implements",
+      "confidence": 1.0,
+      "supporting_text": "ScanRepoSource implements RepoSource by directory scan",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "dc845f88-0c9f-4011-88c1-6c3832b31472",
+      "source": "c923ec4c-b2f1-45ec-b5d1-3e01541b575a",
+      "target": "0c4530c2-edb9-4aad-8e96-c693932ec376",
+      "type": "uses",
+      "confidence": 1.0,
+      "supporting_text": "collect_status takes a GitProbe reference",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "db38f65d-2aaf-408c-bf2a-d6da3d06d674",
+      "source": "2696af3f-1b1a-4835-ab36-ccd2dede26d8",
+      "target": "67d5d39b-78f6-464b-b29f-19815323c95b",
+      "type": "uses",
+      "confidence": 1.0,
+      "supporting_text": "build_graph takes a CargoScanner reference",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "50c6b402-96d1-404b-a5ee-a6febca3502a",
+      "source": "a6b277d4-c4fd-473f-8100-72330ce768b8",
+      "target": "3a3efce7-52fd-4072-bec0-3a4f32b93882",
+      "type": "uses",
+      "confidence": 1.0,
+      "supporting_text": "rx-install discovers, loads, saves, and applies prefix configs",
+      "source_doc": "rx_architecture"
+    },
+    {
+      "id": "1e3c7d8b-87c0-4375-bbaf-18b8ff355409",
+      "source": "a6b277d4-c4fd-473f-8100-72330ce768b8",
+      "target": "bb406073-7599-4ef5-97f4-c6103161dbb6",
+      "type": "uses",
+      "confidence": 1.0,
+      "supporting_text": "execute_plan runs an ExecutionPlan with prefix learning",
+      "source_doc": "rx_architecture"
+    }
+  ]
+}

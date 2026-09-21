@@ -1,3 +1,5 @@
+//! Filesystem, JSON registry, directory scanner, and HTTP fetcher adapters for `rx`.
+
 use anyhow::{Context, Result, anyhow};
 use rx_core::{
     DirectoryScanner, InstalledScript, RegistryEntry, RegistryStore, RemoteScriptFetcher,
@@ -18,6 +20,7 @@ pub struct RxPaths {
     pub registry_path: PathBuf,
 }
 
+/// Resolves the default config root, install directory, and registry path.
 pub fn default_paths() -> Result<RxPaths> {
     let root = rx_home_dir()?;
     Ok(RxPaths {
@@ -48,6 +51,7 @@ pub struct JsonRegistryStore {
 }
 
 impl JsonRegistryStore {
+    /// Creates a registry store backed by `path`.
     pub fn new(path: PathBuf) -> Self {
         Self { path }
     }

@@ -1,25 +1,59 @@
 # rx-registry-json
 
-JSON registry and HTTP fetcher adapters for the `rx` script installer.
+`rx-registry-json` provides the concrete storage, HTTP, and filesystem adapters used by the `rx`
+workspace. Domain rules and adapter traits live in `rx-core`; this crate implements those traits
+with JSON, blocking `reqwest`, `std::fs`, and `walkdir`.
 
-## Purpose
+## Workspace Role
 
-This crate provides the two infrastructure adapters that `rx-install` and `rxx` plug in at
-startup: a JSON-backed implementation of `RegistryStore` and a `reqwest`-based implementation
-of `RemoteScriptFetcher`. It also resolves the XDG-style config paths used by those crates.
+```text
+rx-core              domain types, ports, and execution planning
+rx-registry-json     JSON, HTTP, and filesystem adapters (this crate)
+rx-install           wires the adapters into the rx CLI
+rx-rxx               uses FsScriptReader for the rxx CLI
+```
 
-All behavior and domain logic lives in `rx-script-core`. This crate contains only I/O.
+`rx-install` uses every adapter in this crate. `rx-rxx` only uses `FsScriptReader`; direct runs do
+not read or write the registry.
 
-## Key Types
+## Public API
 
-| Type / fn            | What it does                                                        |
-| -------------------- | ------------------------------------------------------------------- |
-| `RxPaths`            | Holds `root`, `bin_dir`, and `registry_path` as `PathBuf` fields   |
-| `default_paths()`    | Resolves paths from `$XDG_CONFIG_HOME/rx` or `~/.config/rx`        |
-| `JsonRegistryStore`  | Implements `RegistryStore` — reads and writes `registry.json`       |
-| `ReqwestFetcher`     | Implements `RemoteScriptFetcher` — blocking HTTPS GET via `reqwest` |
+| API                 | Implemented port or behavior                                   |
+| ------------------- | -------------------------------------------------------------- |
+| `RxPaths`           | Holds the rx config root, install directory, and registry path |
+| `default_paths()`   | Resolves the default XDG-style paths                           |
+| `JsonRegistryStore` | Implements `rx_core::RegistryStore`                            |
+| `ReqwestFetcher`    | Implements `rx_core::RemoteScriptFetcher`                      |
+| `FsScriptWriter`    | Implements `rx_core::ScriptWriter`                             |
+| `WalkdirScanner`    | Implements `rx_core::DirectoryScanner` recursively             |
+| `FsScriptReader`    | Implements `rx_core::ScriptReader`                             |
 
-The on-disk format is a versioned JSON object:
+`ReqwestFetcher` performs a blocking HTTP GET, rejects non-success status codes, and decodes the
+response body as text. TLS uses `rustls`; `reqwest` default features are disabled.
+
+`FsScriptWriter` creates the install directory, writes `install_dir/<name>`, and sets mode `0755`
+on Unix. `WalkdirScanner` returns every file recursively. It does not filter script types; runtime
+validation remains in `rx-core`.
+
+## Default Paths
+
+`default_paths()` first checks `XDG_CONFIG_HOME`, then falls back to `HOME`:
+
+| Field           | With `XDG_CONFIG_HOME=/config` | With `HOME=/home/alice`                |
+| --------------- | ------------------------------ | -------------------------------------- |
+| `root`          | `/config/rx`                   | `/home/alice/.config/rx`               |
+| `bin_dir`       | `/config/rx/bin`               | `/home/alice/.config/rx/bin`           |
+| `registry_path` | `/config/rx/registry.json`     | `/home/alice/.config/rx/registry.json` |
+
+Resolution fails if neither environment variable is available.
+
+## Registry Behavior
+
+`JsonRegistryStore::new` accepts any registry path. Listing a missing file returns an empty list.
+An upsert creates the parent directory, replaces entries with the same command name, preserves
+other entries, sorts commands by name, and writes pretty-printed JSON.
+
+The format is versioned and currently uses `version: 1`:
 
 ```json
 {
@@ -28,45 +62,50 @@ The on-disk format is a versioned JSON object:
     {
       "name": "deploy",
       "source": "https://example.com/deploy.sh",
-      "install_path": "/home/user/.config/rx/bin/deploy",
-      "runtime": "bash",
+      "install_path": "/home/alice/.config/rx/bin/deploy",
+      "runtime": "sh",
       "description": null
     }
   ]
 }
 ```
 
-Commands are sorted by name on every write. Missing registry files are treated as empty
-rather than an error.
+Runtime values are the serialized `rx_core::Runtime` codes: `rs`, `py`, `js`, `ts`, `sh`, `zsh`,
+`fish`, `nu`, and `rb`. New upserts currently set `description` to `null`.
 
 ## Usage
 
+The trait must be in scope to call `list` or `upsert`:
+
 ```rust
-use rx_registry_json::{JsonRegistryStore, ReqwestFetcher, default_paths};
-use rx_script_core::RegistryStore;
+use rx_core::RegistryStore;
+use rx_registry_json::{JsonRegistryStore, default_paths};
 
 fn main() -> anyhow::Result<()> {
     let paths = default_paths()?;
-    let store = JsonRegistryStore::new(paths.registry_path.clone());
+    let store = JsonRegistryStore::new(paths.registry_path);
 
-    // List all installed commands
     for entry in store.list()? {
-        println!("{}: {}", entry.name, entry.runtime);
+        println!("{} -> {}", entry.name, entry.install_path.display());
     }
-
     Ok(())
 }
 ```
 
-## Workspace Role
+There are no crate feature flags. HTTP support and all filesystem adapters are included in the
+default build.
 
-```
-rx-script-core          domain types, ports (RegistryStore, RemoteScriptFetcher)
-rx-registry-json   <--  this crate: JSON + reqwest adapters, XDG path resolution
-rx-install              rx CLI: install, list, run
-rxx                     direct-run CLI
+## Development
+
+From the workspace root:
+
+```bash
+cargo check -p rx-registry-json
+cargo fmt --all -- --check
+cargo clippy -p rx-registry-json --all-targets -- -D warnings
+cargo test -p rx-registry-json
 ```
 
-`rx-install` and `rxx` wire `JsonRegistryStore` and `ReqwestFetcher` together with the
-planning functions from `rx-script-core`. Swap this crate to change persistence or fetch
-strategy without touching domain logic.
+The integration tests enable `rx-core/test-support` and run its conformance suites against the JSON
+store, filesystem reader and writer, and recursive scanner. `ReqwestFetcher` is not exercised by
+that integration test because it requires a live HTTP endpoint.

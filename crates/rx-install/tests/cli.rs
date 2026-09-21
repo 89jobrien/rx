@@ -1,3 +1,5 @@
+//! End-to-end tests for script installation, listing, and execution through `rx`.
+
 use assert_cmd::Command;
 use std::fs;
 use tempfile::tempdir;

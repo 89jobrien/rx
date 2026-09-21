@@ -1,0 +1,24 @@
+{
+  "documents": [
+    {
+      "id": "rx_architecture",
+      "title": "rx workspace architecture",
+      "source": "codebase analysis",
+      "raw_content": "rx is a Rust workspace for script installation, execution, and multi-repo management. Four crates: rx-core (domain logic with modules script, repo, status, graph, fan), rx-registry-json (JSON persistence + HTTP fetch adapters), rx-install (rx CLI binary with subcommands install/list/run/status/graph/fan plus external command prefix learning), rxx (direct-run CLI). Architecture uses hexagonal ports-and-adapters: RegistryStore, RemoteScriptFetcher, ScriptReader, ScriptWriter, DirectoryScanner, RepoSource, GitProbe, CargoScanner are port traits. Adapters: JsonRegistryStore, ReqwestFetcher, FsScriptReader, FsScriptWriter, WalkdirScanner, ManifestRepoSource, ScanRepoSource, GitCliProbe, FsCargoScanner. ExecutionPlan is the normalized launch plan used by both rx and rxx. CommandPrefixConfig enables prefix learning where rx learns command wrappers like op plugin run or dotenvx run. Script acceptance is shebang-based supporting runtimes: RustScript, Python, JavaScript, TypeScript, Bash, Zsh, Fish, Nushell, Ruby. The repo module manages repos.toml manifests with RepoMeta entries having name, path, role, language, tags, default_branch. Status module uses rayon for parallel git probing. Graph module builds cross-repo Cargo dependency graphs with who_uses, deps, topo_order queries and tree/json/mermaid output. Fan module runs commands across repos with configurable concurrency, timeout, and fail-fast.",
+      "chunks": [
+        {
+          "id": "56ec692b-3f6e-45b3-9c85-2c36a0814bb0",
+          "doc_id": "rx_architecture",
+          "text": "rx is a Rust workspace for script installation, execution, and multi-repo management. Four crates: rx-core (domain logic with modules script, repo, status, graph, fan), rx-registry-json (JSON persistence + HTTP fetch adapters), rx-install (rx CLI binary with subcommands install/list/run/status/graph/fan plus external command prefix learning), rxx (direct-run CLI). Architecture uses hexagonal ports-and-adapters: RegistryStore, RemoteScriptFetcher, ScriptReader, ScriptWriter, DirectoryScanner, RepoSource, GitProbe, CargoScanner are port traits. Adapters: JsonRegistryStore, ReqwestFetcher, FsScriptReader, FsScriptWriter, WalkdirScanner, ManifestRepoSource, ScanRepoSource, GitCliProbe, FsCargoScanner. ExecutionPlan is the normalized launch plan used by both rx and rxx. CommandPrefixConfig enables prefix learning where rx learns command wrappers like op plugin run or dotenvx run. Script acceptance is shebang-based supporting runtimes: RustScript, Python, JavaScript, TypeScript, Bash, Zsh, F",
+          "offset": 0
+        },
+        {
+          "id": "5c4265fb-25b4-46c5-a616-e3ababe4e3b7",
+          "doc_id": "rx_architecture",
+          "text": "les prefix learning where rx learns command wrappers like op plugin run or dotenvx run. Script acceptance is shebang-based supporting runtimes: RustScript, Python, JavaScript, TypeScript, Bash, Zsh, Fish, Nushell, Ruby. The repo module manages repos.toml manifests with RepoMeta entries having name, path, role, language, tags, default_branch. Status module uses rayon for parallel git probing. Graph module builds cross-repo Cargo dependency graphs with who_uses, deps, topo_order queries and tree/json/mermaid output. Fan module runs commands across repos with configurable concurrency, timeout, and fail-fast.",
+          "offset": 800
+        }
+      ]
+    }
+  ]
+}

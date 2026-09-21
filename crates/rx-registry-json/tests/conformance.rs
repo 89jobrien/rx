@@ -1,3 +1,5 @@
+//! Contract tests for the filesystem and JSON registry adapters.
+
 use rx_core::conformance;
 use rx_registry_json::{FsScriptReader, FsScriptWriter, JsonRegistryStore, WalkdirScanner};
 use std::fs;

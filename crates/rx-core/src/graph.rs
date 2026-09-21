@@ -9,9 +9,7 @@ use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 
-// =========================================================================
 // Domain types
-// =========================================================================
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PackageNode {
@@ -43,12 +41,11 @@ pub struct DepGraph {
     pub edges: Vec<DepEdge>,
 }
 
-// =========================================================================
 // Port
-// =========================================================================
 
 /// Scans a repo directory for Cargo.toml files and extracts package info.
 pub trait CargoScanner: Sync {
+    /// Returns Cargo package metadata discovered in the repository.
     fn scan_repo(&self, repo: &RepoMeta) -> Result<Vec<CrateInfo>>;
 }
 
@@ -70,9 +67,7 @@ pub struct RawDep {
     pub req: String,
 }
 
-// =========================================================================
 // Adapter: filesystem Cargo.toml scanner
-// =========================================================================
 
 pub struct FsCargoScanner;
 
@@ -196,9 +191,7 @@ fn extract_deps(toml: &toml::Value, section: &str, kind: DepKind, out: &mut Vec<
     }
 }
 
-// =========================================================================
 // Graph building
-// =========================================================================
 
 /// Build a dependency graph from repos using the given scanner.
 pub fn build_graph(repos: &[RepoMeta], scanner: &impl CargoScanner) -> Result<DepGraph> {
@@ -240,9 +233,7 @@ pub fn build_graph(repos: &[RepoMeta], scanner: &impl CargoScanner) -> Result<De
     Ok(DepGraph { packages, edges })
 }
 
-// =========================================================================
 // Queries
-// =========================================================================
 
 impl DepGraph {
     /// Packages that directly or transitively depend on `pkg`.
@@ -333,9 +324,7 @@ fn bfs<'a>(start: &str, adj: &HashMap<&'a str, Vec<&'a str>>) -> Vec<String> {
     visited.into_iter().map(String::from).collect()
 }
 
-// =========================================================================
 // Rendering
-// =========================================================================
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GraphFormat {
@@ -344,6 +333,7 @@ pub enum GraphFormat {
     Mermaid,
 }
 
+/// Renders the dependency graph in the selected output format.
 pub fn render_graph(graph: &DepGraph, format: GraphFormat) -> String {
     match format {
         GraphFormat::Json => serde_json::to_string_pretty(graph).unwrap_or_default(),
@@ -424,9 +414,7 @@ fn render_tree(graph: &DepGraph) -> String {
     out
 }
 
-// =========================================================================
 // Tests
-// =========================================================================
 
 #[cfg(test)]
 mod tests {

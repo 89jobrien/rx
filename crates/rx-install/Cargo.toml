@@ -5,11 +5,16 @@ edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
+authors.workspace    = true
+keywords.workspace   = true
+categories.workspace = true
 description = "Install compatible scripts from local directories, files, and URLs"
 
 [dependencies]
 anyhow = "1.0.100"
 clap = { version = "4.5.39", features = ["derive"] }
+clap_complete = "4"
+clap_complete_nushell = "4"
 rx-core = { path = "../rx-core", version = "0.1.0" }
 rx-registry-json = { path = "../rx-registry-json", version = "0.1.0" }
 comfy-table = "7.1.4"

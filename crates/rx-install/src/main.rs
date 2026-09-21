@@ -1,5 +1,9 @@
+//! Command-line interface for installing, running, and inspecting script repositories.
+
+mod status;
+
 use anyhow::{Context, Result, anyhow, bail};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use rx_core::{
     CommandPrefixConfig, DirectRunRequest, ExecutionPlan, InstallRequest, RunRequest,
     apply_command_prefix,
@@ -8,7 +12,6 @@ use rx_core::{
     graph::{self, FsCargoScanner, GraphFormat},
     install, list_installed, plan_direct_run, plan_installed_run,
     repo::{self, ManifestRepoSource, RepoSource, ScanRepoSource},
-    status::{self, git_cli::GitCliProbe},
 };
 use rx_registry_json::{
     FsScriptReader, FsScriptWriter, JsonRegistryStore, ReqwestFetcher, WalkdirScanner,
@@ -203,7 +206,18 @@ enum Command {
 }
 
 fn main() -> Result<()> {
+    if std::env::args().nth(1).as_deref() == Some("completions") {
+        clap_complete::generate(
+            clap_complete_nushell::Nushell,
+            &mut Cli::command(),
+            "rx",
+            &mut std::io::stdout(),
+        );
+        return Ok(());
+    }
+
     let cli = Cli::parse();
+
     let shell_aliases = FsShellAliasSource.load_aliases()?;
     let prefix_store = TomlPrefixConfigStore {
         path: cli.prefix_config,
@@ -265,7 +279,7 @@ fn main() -> Result<()> {
             filter,
             json,
         } => {
-            run_status(manifest, scan, filter.as_deref(), json)?;
+            status::run_status(manifest, scan, filter.as_deref(), json)?;
         }
         Command::Graph {
             manifest,
@@ -346,73 +360,6 @@ fn default_manifest_path() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("repos.toml"))
 }
 
-// --- Status ---
-
-fn run_status(
-    manifest_path: PathBuf,
-    scan: Option<PathBuf>,
-    filter_expr: Option<&str>,
-    json: bool,
-) -> Result<()> {
-    let repos = resolve_repos(manifest_path, scan, filter_expr)?;
-
-    if repos.is_empty() {
-        eprintln!("no repos found");
-        return Ok(());
-    }
-
-    let statuses = status::collect_status(&repos, &GitCliProbe);
-
-    if json {
-        let json_out = serde_json::to_string_pretty(&statuses)?;
-        println!("{json_out}");
-    } else {
-        render_status_table(&statuses);
-    }
-
-    Ok(())
-}
-
-fn render_status_table(statuses: &[status::RepoStatus]) {
-    use comfy_table::{ContentArrangement, Table, presets::UTF8_FULL_CONDENSED};
-
-    let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL_CONDENSED)
-        .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_header(vec![
-            "Repo",
-            "Branch",
-            "State",
-            "Ahead",
-            "Behind",
-            "Staged",
-            "Modified",
-            "Untracked",
-            "Last Commit",
-        ]);
-
-    for s in statuses {
-        let last = s.last_commit.as_ref().map_or_else(
-            || "-".to_string(),
-            |c| format!("{} ({})", c.subject, status::relative_time(c.timestamp)),
-        );
-        table.add_row(vec![
-            s.name.clone(),
-            s.branch.clone().unwrap_or_else(|| "(detached)".into()),
-            s.state_label().to_string(),
-            s.ahead.to_string(),
-            s.behind.to_string(),
-            s.staged.to_string(),
-            s.modified.to_string(),
-            s.untracked.to_string(),
-            last,
-        ]);
-    }
-
-    println!("{table}");
-}
-
 // --- Graph ---
 
 fn run_graph(
@@ -477,8 +424,8 @@ fn run_graph(
     Ok(())
 }
 
-/// Shared repo resolution for status and graph subcommands.
-fn resolve_repos(
+/// Shared repo resolution for status, graph, and fan subcommands.
+pub(crate) fn resolve_repos(
     manifest_path: PathBuf,
     scan: Option<PathBuf>,
     filter_expr: Option<&str>,

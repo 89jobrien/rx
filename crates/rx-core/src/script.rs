@@ -1,3 +1,5 @@
+//! Script installation, runtime detection, and execution planning.
+
 use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -107,21 +109,26 @@ pub struct CommandPrefixConfig {
 // --- Ports ---
 
 pub trait RegistryStore {
+    /// Loads all installed script entries.
     fn list(&self) -> Result<Vec<RegistryEntry>>;
+    /// Inserts or updates registry entries for the installed scripts.
     fn upsert(&mut self, installed: &[InstalledScript]) -> Result<()>;
 }
 
 pub trait RemoteScriptFetcher {
+    /// Downloads script source text from `url`.
     fn fetch(&self, url: &str) -> Result<String>;
 }
 
 /// Port for reading a script's source text from an arbitrary location.
 pub trait ScriptReader {
+    /// Reads script source text from `path`.
     fn read(&self, path: &Path) -> Result<String>;
 }
 
 /// Port for writing an installed script to the install directory.
 pub trait ScriptWriter {
+    /// Writes a named script into `install_dir` and returns its destination.
     fn write(&self, name: &str, contents: &str, install_dir: &Path) -> Result<PathBuf>;
 }
 
@@ -129,11 +136,13 @@ pub trait ScriptWriter {
 /// is an adapter-level detail; the domain only cares about the flat list of
 /// file paths returned).
 pub trait DirectoryScanner {
+    /// Returns the script candidates found under `dir`.
     fn scan_files(&self, dir: &Path) -> Result<Vec<PathBuf>>;
 }
 
 // --- Public API ---
 
+/// Installs compatible scripts from a file, directory, or URL and updates the registry.
 pub fn install<R, F, W, S>(
     request: &InstallRequest,
     registry: &mut R,
@@ -173,10 +182,12 @@ where
     Ok(report)
 }
 
+/// Returns every script recorded in the registry.
 pub fn list_installed<R: RegistryStore>(registry: &R) -> Result<Vec<RegistryEntry>> {
     registry.list()
 }
 
+/// Formats a registry entry as a tab-separated list row.
 pub fn format_registry_entry(entry: &RegistryEntry) -> String {
     format!(
         "{}\t{}\t{}\t{}",
@@ -187,6 +198,7 @@ pub fn format_registry_entry(entry: &RegistryEntry) -> String {
     )
 }
 
+/// Builds an execution plan for a script selected by registry name.
 pub fn plan_installed_run<R: RegistryStore>(
     request: &RunRequest,
     registry: &R,
@@ -203,6 +215,7 @@ pub fn plan_installed_run<R: RegistryStore>(
     ))
 }
 
+/// Builds an execution plan for a script read directly from a path.
 pub fn plan_direct_run<SR: ScriptReader>(
     request: &DirectRunRequest,
     reader: &SR,
@@ -218,6 +231,7 @@ pub fn plan_direct_run<SR: ScriptReader>(
     ))
 }
 
+/// Wraps an execution plan with a prefix command and its arguments.
 pub fn apply_command_prefix(plan: &ExecutionPlan, prefix: &[String]) -> Result<ExecutionPlan> {
     let (program, prefix_args) = prefix
         .split_first()
@@ -369,6 +383,7 @@ fn validate_script_contents(contents: &str, label: &str) -> Result<Runtime> {
     detect_runtime(contents, label)
 }
 
+/// Detects a supported runtime from a script shebang and, for Node, its extension.
 pub fn detect_runtime(contents: &str, label: &str) -> Result<Runtime> {
     let first_line = contents
         .lines()
