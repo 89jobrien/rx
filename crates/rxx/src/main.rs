@@ -13,6 +13,7 @@ use std::{
 #[command(
     name = "rxx",
     about = "Execute compatible scripts directly",
+    version,
     trailing_var_arg = true
 )]
 struct Cli {

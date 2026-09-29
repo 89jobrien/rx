@@ -102,7 +102,8 @@ impl ShellAliasSource for FsShellAliasSource {
 #[derive(Debug, Parser)]
 #[command(
     name = "rx",
-    about = "Install compatible scripts from local or remote sources"
+    about = "Install compatible scripts from local or remote sources",
+    version
 )]
 struct Cli {
     #[arg(
