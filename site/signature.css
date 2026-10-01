@@ -1,0 +1,84 @@
+/* ============================================================
+   rx — signature: the launch ladder
+   rx's README states the launch order as four numbered steps, and that
+   ordering is the product. It is not a pipeline a request passes
+   through; it is an ordered set of escapes, where each step may end
+   the matter by deciding to run the command a different way, and only
+   the fourth one is allowed to fail first.
+
+   Two of the four rungs are knowledge and two are attempt. Rungs 1 and
+   2 read something already written down -- a shell alias, a fish
+   abbreviation, a configured mapping. Rung 3 is a bare execution, and
+   rung 4 is the only place rx tries candidates and learns from the
+   result.
+
+   That is why two inks and not one. Cyan marks the rungs that consult
+   what rx already knows, and is the accent because a known route is the
+   common case. Amber marks rung 4 alone: the retry that can write
+   `prefixes.toml` on its way out. Learning is the one rung where a
+   mistake leaves a trace on disk, so it is the one rung that should not
+   read like the rest.
+
+   Same idea as crux's trace, doob's handoff board, minibox's state rail,
+   and sparkfile's emitted tree: drawn from something the product
+   already does.
+   ============================================================ */
+
+.launch {
+  margin: 1.5rem 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-sunken);
+  overflow: hidden;
+}
+
+.rung {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(9rem, 13rem) minmax(0, 1fr);
+  gap: 0.6rem 1rem;
+  align-items: baseline;
+  padding: 0.8rem 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.rung:first-child {
+  border-top: 0;
+}
+
+.rung:hover {
+  background: var(--color-row-hover);
+}
+
+/* the step number, in the small mono size, so four of them read as an
+   ordered list rather than as four unrelated rows */
+.rung-n {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+}
+
+.rung-name {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-accent);
+}
+
+/* the learning rung, and only that one */
+.rung.is-learn .rung-name {
+  color: var(--color-ink-2);
+}
+
+.rung-what {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-muted);
+}
+
+@media (max-width: 44rem) {
+  .rung {
+    grid-template-columns: 1.8rem minmax(0, 1fr);
+  }
+
+  .rung-what {
+    grid-column: 2;
+  }
+}

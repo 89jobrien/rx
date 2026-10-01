@@ -1,0 +1,147 @@
+/* ============================================================
+   rx — design tokens
+   Adapter. rx never runs a command the way you would; it decides how
+   you would have run it, and that decision is a chain of rewrites.
+   So the palette is a router rather than a theme: one ground, one
+   accent for the route already known, one ink for the route learned.
+
+   The two inks are the point of the tool, not decoration. Cyan is what
+   rx already knew — a mapping, an alias, a prefix. Amber is what rx
+   had to discover by trying candidates and keeping the one that worked.
+   Colouring the pipeline stages differently would be lying about what
+   rx does, because making that distinction persistent is the whole
+   behaviour.
+
+   Type: Instrument Sans (display) / IBM Plex Sans (body) / IBM Plex
+   Mono (commands, prefixes, registry fields).
+   ============================================================ */
+
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("fonts/instrument-sans-latin-wght-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF,
+    U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: swap;
+  src: url("fonts/ibm-plex-sans-latin-wght-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF,
+    U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF,
+    U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/ibm-plex-mono-latin-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF,
+    U+FFFD;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* type ------------------------------------------------------------------ */
+  --font-display: "Instrument Sans", "Avenir Next", Avenir, sans-serif;
+  --font-body: "IBM Plex Sans", "Avenir Next", Avenir, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --font-display-weight: 600;
+  --font-body-weight: 400;
+  --font-body-strong: 600;
+  --display-tracking: -0.025em;
+  --display-tracking-body: -0.012em;
+  --brand-tracking: -0.025em;
+
+  --font-size-xs: 0.72rem;
+  --font-size-sm: 0.84rem;
+  --font-size-md: 1.18rem;
+  --font-size-lg: clamp(1.42rem, 2.6vw, 1.9rem);
+  --font-size-2xl: clamp(2.1rem, 4.6vw, 3.3rem);
+  --font-size-display: clamp(2.8rem, 9vw, 6rem);
+
+  /* palette: adapter ------------------------------------------------------ */
+  --color-bg: #14161c;
+  --color-surface: #1b1e26;
+  --color-surface-raised: #242833;
+  --color-surface-sunken: #0e1014;
+  --color-fg: #e9ecf2;
+  --color-fg-muted: #939aab;
+  --color-accent: #7cd6e0;
+  --color-accent-hover: #a3e5ed;
+  --color-accent-fg: #081114;
+  --color-border: #2c313d;
+  --color-border-strong: #3f4553;
+  --color-focus: #f0b429;
+
+  /* second ink: a prefix rx discovered, not one it already knew ---------- */
+  --color-ink-2: #f0b429;
+
+  --color-nav-bg: rgb(20 22 28 / 0.9);
+  --color-row-hover: rgb(124 214 224 / 0.05);
+  --color-note-bg: rgb(124 214 224 / 0.07);
+  --color-pill-neutral-bg: rgb(147 154 171 / 0.15);
+  --color-code-bg: #0e1014;
+  --color-code-fg: #dde2ea;
+  --color-terminal-bg: #0e1014;
+  --color-terminal-fg: #dde2ea;
+  --color-dot-1: #e8836f;
+  --color-dot-2: #f0b429;
+  --color-dot-3: #7cd6e0;
+
+  --color-signal-ok: #7cd6e0;
+  --color-signal-ok-bg: rgb(124 214 224 / 0.14);
+  --color-signal-warn: #f0b429;
+  --color-signal-warn-bg: rgb(240 180 41 / 0.15);
+  --color-signal-err: #e8836f;
+  --color-signal-err-bg: rgb(232 131 111 / 0.14);
+
+  /* form ------------------------------------------------------------------ */
+  --radius-xs: 3px;
+  --radius: 8px;
+  --radius-lg: 14px;
+  --radius-pill: 3px;
+  --content-width: 1080px;
+  --content-width-narrow: 900px;
+  --stat-columns: 4;
+  --terminal-min-height: 18rem;
+
+  --shadow-card: 0 10px 30px rgb(0 0 0 / 0.34);
+  --shadow-terminal: 0 24px 70px rgb(0 0 0 / 0.3);
+  --shadow-nav: 0 8px 28px rgb(0 0 0 / 0.36);
+  --shadow-button: 0 8px 20px -8px rgb(124 214 224 / 0.5);
+
+  /* atmosphere: a routed signal, not a wash ------------------------------- */
+  --atmosphere-image: linear-gradient(
+      90deg,
+      rgb(124 214 224 / 0.05) 0 2px,
+      transparent 2px
+    ),
+    radial-gradient(circle at 90% -10%, rgb(240 180 41 / 0.05), transparent 28rem);
+  --atmosphere-size: 3rem 100%, auto;
+  --grain-image: radial-gradient(rgb(233 236 242 / 0.03) 0.5px, transparent 0.5px);
+  --grain-opacity: 1;
+  --grain-blend: normal;
+}

@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="rx installs compatible scripts from files, directories, and URLs, runs them through learned command prefixes, and manages git repositories across a workspace.">
+    <title>rx &mdash; Script installation with learned command prefixes</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <nav class="nav" aria-label="Primary">
+      <a href="index.html" class="brand" aria-current="page">rx</a>
+      <a href="#launch">Launch ladder</a>
+      <a href="#runtimes">Runtimes</a>
+      <a href="#repos">Across repos</a>
+      <a href="#commands">Commands</a>
+    </nav>
+
+    <main id="main">
+      <header class="hero">
+        <div class="hero-grid">
+          <div>
+            <span class="eyebrow reveal">Rust 2024 / script install and dispatch / 4 crates</span>
+            <h1 class="reveal">rx</h1>
+            <p class="tagline reveal">Installs scripts from files, directories, and URLs, then runs them through a prefix it worked out for itself. Also fans commands across every repo in a workspace.</p>
+            <div class="actions reveal">
+              <a class="button button-primary" href="#launch">See the launch order</a>
+              <a class="button" href="https://github.com/89jobrien/rx">Source</a>
+            </div>
+          </div>
+          <div class="terminal reveal" aria-label="Example rx session">
+            <div class="terminal-bar"><span class="label">rx / learning a prefix</span></div>
+            <pre><span class="prompt">$</span> rx gh issue list
+      <span class="err">gh: command not found on PATH</span>
+
+<span class="prompt">$</span> rx gh issue list
+      <span class="cmt">candidate [op, plugin, run, --] succeeded
+learned: gh = ["op", "plugin", "run", "--"]</span>
+
+<span class="prompt">$</span> rx gh issue list
+      <span class="ok">3 open, 1 assigned to you</span></pre>
+          </div>
+        </div>
+      </header>
+
+      <section id="launch" class="reveal">
+        <h2>The launch ladder</h2>
+        <p>
+          Every command rx runs passes through four ordered rungs. Three of
+          them consult something already written down. The fourth is the only
+          one permitted to fail first, and the only one that writes anything
+          back.
+        </p>
+        <div class="launch">
+          <div class="rung">
+            <span class="rung-n">01</span>
+            <span class="rung-name">expand alias</span>
+            <span class="rung-what">A safe <code>zsh</code> or <code>fish</code> alias body expands first. Anything depending on control flow, pipes, or <code>eval</code> is skipped rather than half-emulated.</span>
+          </div>
+          <div class="rung">
+            <span class="rung-n">02</span>
+            <span class="rung-name">apply mapping</span>
+            <span class="rung-what">An exact wrapper from <code>prefixes.toml</code>, or one discovered from your 1Password plugins, <code>dotenvx</code>, or <code>mise</code> config.</span>
+          </div>
+          <div class="rung">
+            <span class="rung-n">03</span>
+            <span class="rung-name">run directly</span>
+            <span class="rung-what">No wrapper at all. The common case, and the reason this rung needs no ink of its own.</span>
+          </div>
+          <div class="rung is-learn">
+            <span class="rung-n">04</span>
+            <span class="rung-name">try, then learn</span>
+            <span class="rung-what">Each <code>candidate_prefixes</code> entry is tried in turn. The one that succeeds is persisted for next time, if <code>learn_on_successful_fallback</code> is set.</span>
+          </div>
+        </div>
+        <p class="note">
+          Because rung 4 may re-run a command after it already failed, fallback
+          learning belongs to idempotent commands and auth wrappers — never to
+          anything destructive.
+        </p>
+      </section>
+
+      <section id="runtimes" class="reveal">
+        <h2>What it accepts</h2>
+        <p>
+          A script qualifies by its shebang. <code>rx</code> installs it, derives
+          the command name from the filename stem, and records it so
+          <code>rx run</code> can find it later.
+        </p>
+        <div class="stat-strip">
+          <div class="stat">
+            <span class="n">9</span>
+            <span class="d">Accepted runtimes</span>
+          </div>
+          <div class="stat">
+            <span class="n">3</span>
+            <span class="d">Source types</span>
+          </div>
+          <div class="stat">
+            <span class="n">4</span>
+            <span class="d">Workspace crates</span>
+          </div>
+          <div class="stat">
+            <span class="n">1</span>
+            <span class="d">Registry, JSON</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Runtime</th><th>Registry key</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>rust-script</code></td><td><code>rs</code></td></tr>
+              <tr><td><code>python3</code></td><td><code>py</code></td></tr>
+              <tr><td><code>node</code>, <code>bun</code></td><td><code>js</code>, <code>ts</code></td></tr>
+              <tr><td><code>bash</code>, <code>zsh</code>, <code>fish</code></td><td><code>sh</code>, <code>zsh</code>, <code>fish</code></td></tr>
+              <tr><td><code>nu</code>, <code>ruby</code></td><td><code>nu</code>, <code>rb</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">
+          Source types are a local file, a local directory scanned recursively,
+          or a single remote URL. A directory that matches nothing fails rather
+          than reporting success.
+        </p>
+      </section>
+
+      <section id="repos" class="reveal">
+        <h2>Across a workspace</h2>
+        <p>
+          Three commands share the same <code>--scan</code>,
+          <code>--manifest</code>, and <code>--filter</code> flags, so a
+          workspace can be inspected or driven without naming each repo.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Command</th><th>What it does across every matched repo</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>rx status</code></td>
+                <td>Branch, clean or dirty, ahead/behind, staged, modified, untracked, last commit.</td>
+              </tr>
+              <tr>
+                <td><code>rx graph</code></td>
+                <td>Cargo dependency edges as a tree, JSON, or Mermaid; <code>--who-uses</code> and <code>--deps</code> for either direction.</td>
+              </tr>
+              <tr>
+                <td><code>rx fan</code></td>
+                <td>Runs one command everywhere in parallel, with a per-repo timeout, <code>--fail-fast</code>, and <code>--dry-run</code>.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="commands" class="reveal">
+        <h2>Commands</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Command</th><th>Effect</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>rx install &lt;source&gt;</code></td><td>Install a file, directory, or URL and record it in the registry.</td></tr>
+              <tr><td><code>rx list</code></td><td>One tab-delimited row per installed command: name, description, path, source.</td></tr>
+              <tr><td><code>rx run &lt;name&gt;</code></td><td>Resolve from the registry and execute through the runtime adapter.</td></tr>
+              <tr><td><code>rxx &lt;script&gt;</code></td><td>Run a compatible script directly, without installing it first.</td></tr>
+              <tr><td><code>rx &lt;anything else&gt;</code></td><td>Passthrough. <code>rx gh issue list</code> is a valid invocation.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">
+          Command names come from the filename stem, so <code>preflight.sh</code>
+          and <code>preflight.rs</code> collide in one registry. Reinstalling the
+          same name updates the entry rather than duplicating it.
+        </p>
+      </section>
+
+      <footer class="site-foot reveal">
+        <p><a href="https://github.com/89jobrien/rx">Source on GitHub</a></p>
+      </footer>
+    </main>
+  </body>
+</html>
